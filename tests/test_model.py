@@ -27,10 +27,11 @@ def digest(p: Path) -> str:
 
 class TheModelTable(unittest.TestCase):
 
-    def test_both_models_are_offered(self):
-        self.assertEqual(systems.machine_ids(), ["q800", "q700"])
+    def test_all_models_are_offered(self):
+        self.assertEqual(systems.machine_ids(), ["q800", "q700", "q900", "lc475"])
         self.assertEqual(systems.machine_labels(),
-                         ["Macintosh Quadra 800", "Macintosh Quadra 700"])
+                         ["Macintosh Quadra 800", "Macintosh Quadra 700",
+                          "Macintosh Quadra 900", "Macintosh LC 475"])
 
     def test_every_model_is_consistent(self):
         for t in systems.MACHINES.values():
@@ -89,7 +90,7 @@ class Record(unittest.TestCase):
         self.assertEqual(Machine.from_json(m.to_json()), m)
 
     def test_an_unknown_model_falls_back_to_the_default(self):
-        self.assertEqual(Machine.from_dict({"machine": "q900"}).machine, systems.DEFAULT_MACHINE)
+        self.assertEqual(Machine.from_dict({"machine": "q950"}).machine, systems.DEFAULT_MACHINE)
 
     def test_a_bare_record_takes_its_models_defaults(self):
         m = Machine.from_dict({"name": "x", "machine": "q700"})

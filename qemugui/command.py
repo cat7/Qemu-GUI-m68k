@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import shlex
 
-from . import paths
+from . import paths, systems
 from .model import Machine, detect_format
 from .systems import ICOUNT_SHIFT
 
@@ -150,9 +150,10 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
         if s.file:
             argv += _scsi_args(s, machine_dir, platform)
 
-    for index, fd in enumerate(m.floppies):
-        if fd and fd.file:
-            argv += _floppy_args(index, fd, machine_dir, platform)
+    if systems.machine_type(m.machine).floppy:
+        for index, fd in enumerate(m.floppies):
+            if fd and fd.file:
+                argv += _floppy_args(index, fd, machine_dir, platform)
 
     argv += split_extra_args(m.extra_args, platform)
     return argv

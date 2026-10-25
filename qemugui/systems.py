@@ -99,7 +99,20 @@ SCREENS: dict[str, tuple[Screen, ...]] = {
         Screen(1152, 870, 4, COLOR21),
         Screen(1152, 870, 8, COLOR21),
     ),
+    # The LC 475 has 1 MB of VRAM at most
+    "lc475": (
+        Screen(640, 480, 1),
+        Screen(640, 480, 2),
+        Screen(640, 480, 4),
+        Screen(640, 480, 8),
+        Screen(800, 600, 1),
+        Screen(800, 600, 2),
+        Screen(800, 600, 4),
+        Screen(800, 600, 8),
+    ),
 }
+# The Quadra 900 has the Quadra 700's built-in video
+SCREENS["q900"] = SCREENS["q700"]
 
 
 @dataclass(frozen=True)
@@ -113,6 +126,7 @@ class MachineType:
     screen: str                  # the Screen.id a new machine starts with
     icount: bool                 # -icount shift=ICOUNT_SHIFT on by default
     easc: bool                   # has the "easc" machine property
+    floppy: bool = True          # QEMU emulates its floppy drives
 
     @property
     def screens(self) -> tuple[Screen, ...]:
@@ -126,6 +140,14 @@ MACHINES: dict[str, MachineType] = {
     "q700": MachineType("q700", "Macintosh Quadra 700", "Quadra700.rom", 64, 256,
                         (8, 16, 20, 32, 64, 128, 256), "832x624x8",
                         icount=True, easc=False),
+    # its floppy drive sits behind an I/O processor that is not emulated yet
+    "q900": MachineType("q900", "Macintosh Quadra 900", "Quadra900.rom", 64, 256,
+                        (8, 16, 20, 32, 64, 128, 256), "832x624x8",
+                        icount=True, easc=False, floppy=False),
+    # sizes the ROM's memory sizing gets right with QEMU's flat RAM
+    "lc475": MachineType("lc475", "Macintosh LC 475", "LC475.rom", 32, 132,
+                         (4, 8, 16, 32, 64, 128), "640x480x8",
+                         icount=False, easc=True),
 }
 
 DEFAULT_MACHINE = "q800"

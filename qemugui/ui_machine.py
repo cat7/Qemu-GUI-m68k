@@ -150,22 +150,38 @@ class DriveRow:
                          format=self.format.get() or "raw" if k == "disk" else "raw")
 
 
+def _set_state(widget, state: str):
+    """Set a widget's state, and its children's for compound widgets."""
+    try:
+        widget.config(state=state)
+    except tk.TclError:
+        pass
+    for child in widget.winfo_children():
+        _set_state(child, state)
+
+
 class FloppyRow:
     def __init__(self, master, row: int, index: int, fallback=None):
         self.file = tk.StringVar()
         self.readonly = tk.BooleanVar(value=False)
         ttk.Label(master, text=model.floppy_name(index) + ":").grid(
             row=row, column=0, sticky="w", padx=(0, 4), pady=1)
-        FilePicker(master, self.file, FLOPPY_TYPES, width=40, fallback=fallback).grid(
-            row=row, column=1, sticky="ew", padx=2, pady=1)
+        self.picker = FilePicker(master, self.file, FLOPPY_TYPES, width=40,
+                                 fallback=fallback)
+        self.picker.grid(row=row, column=1, sticky="ew", padx=2, pady=1)
         ro = ttk.Checkbutton(master, text="Read only", variable=self.readonly)
         ro.grid(row=row, column=2, sticky="w", padx=(6, 0))
+        self.widgets = [self.picker, ro]
         ToolTip(ro, "The Mac may write to the disk while it runs, but every change is "
                     "thrown away when it stops (snapshot=on). Use it for install disks.")
 
     def set(self, fd: Floppy | None):
         self.file.set(fd.file if fd else "")
         self.readonly.set(fd.readonly if fd else False)
+
+    def enable(self, on: bool):
+        for w in self.widgets:
+            _set_state(w, "normal" if on else "disabled")
 
     def get(self) -> Floppy | None:
         f = self.file.get().strip()
@@ -558,6 +574,8 @@ class MachineEditor(tk.Toplevel):
                                   f"{systems.RAM_COMFORTABLE} MB or less")
         self.screen_cb.config(values=[s.label for s in t.screens])
         self.easc_cb.config(state="normal" if t.easc else "disabled")
+        for row in self.floppy_rows:
+            row.enable(t.floppy)
 
     def _type_chosen(self, _event=None):
         """Switching model carries over what fits (model.apply_machine_type)."""

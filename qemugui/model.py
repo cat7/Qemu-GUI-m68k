@@ -24,7 +24,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
 
-from . import paths
+from . import paths, systems
 from .systems import (MACHINES, MAC_PREFIX, RAM_MIN, machine_type, normalise_machine_id,
                       screen_by_id)
 
@@ -580,8 +580,14 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
                 p = Path(machine_dir) / p
             if not p.is_file():
                 warnings.append(f"{label}: {f} is not there.")
+        floppy_ok = systems.machine_type(m.machine).floppy
         for i, fd in enumerate(m.floppies):
             if fd and fd.file:
+                if not floppy_ok:
+                    warnings.append(f"{floppy_name(i)}: the "
+                                    f"{systems.machine_type(m.machine).label} has no "
+                                    "working floppy drive yet; the disk is left out.")
+                    continue
                 why = floppy_problem(paths.join_path(machine_dir or "", fd.file, platform))
                 if why:
                     warnings.append(why)

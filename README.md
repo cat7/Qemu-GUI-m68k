@@ -1,7 +1,8 @@
 # Qemu-system-m68k GUI
 
 A portable launcher for the 68k Macintosh machines of `qemu-system-m68k`:
-the Macintosh Quadra 800 (`q800`) and the Macintosh Quadra 700 (`q700`). Needs real Apple ROMs. The program must sit in the same
+the Macintosh Quadra 800 (`q800`), Quadra 700 (`q700`), Quadra 900 (`q900`)
+and LC 475 (`lc475`). Needs real Apple ROMs. The program must sit in the same
 folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 `Machines` folder next to it, one subfolder per machine with its
 `machine.json`, its `pram.img`, a `run.command` and the last run's log.
@@ -10,9 +11,14 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 
 - Machine model, from the table in `qemugui/systems.py` (one `MachineType`
   line per model, one `Screen` line per display mode).
-- ROM (`-bios`): starts as `Quadra800.rom` / `Quadra700.rom`, looked for next
-  to the emulator.
-- Memory (`-m`): up to 1024 MB on the Quadra 800, 256 MB on the Quadra 700.
+- ROM (`-bios`): starts as `Quadra800.rom`, `Quadra700.rom`, `Quadra900.rom`
+  (the same ROM as the 700) or `LC475.rom`, looked for next to the emulator.
+- Memory (`-m`): up to 1024 MB on the Quadra 800, 256 MB on the Quadra 700
+  and 900, 128 MB on the LC 475 (whose ROM sizes memory correctly only for
+  the sizes offered).
+- Quadra 900: keyboard and mouse go through its emulated SWIM I/O
+  processor; its floppy drive does not work yet. LC 475: no Ethernet,
+  1 MB of video memory, keyboard, mouse and clock through Cuda.
 - PRAM (`-drive ...,if=mtd`): each machine's own 512-byte `pram.img`, made
   blank when the machine is first saved; "Reset PRAM" clears it. Both
   models keep their settings there between runs.
