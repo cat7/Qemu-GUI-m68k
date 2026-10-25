@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "Quadra 700",
+  "machine": "q700",
+  "ram_mb": 64,
+  "rom": "Quadra700.rom",
+  "pram": "/Applications/Qemu-system-m68k/pram-q700.img",
+  "screen": "1152x870x1",
+  "display": "sdl",
+  "icount": true,
+  "audio": "default",
+  "network": {"mode": "user", "mac": "08:00:07:12:34:57"},
+  "scsi": [
+    {"id": 0, "kind": "disk", "file": "/Volumes/Macdata/qemu/hd/aux/system7.1-q700.img", "format": "raw"}
+  ],
+  "floppies": [null, null],
+  "extra_args": "",
+  "notes": "Reproduces /Applications/Qemu-system-m68k/qemu-system-m68k-q700.command"
+}

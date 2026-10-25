@@ -1,0 +1,678 @@
+"""The machine editor: Machine, Display, Drives, Network & sound, Shared
+folder, Advanced.
+
+Two rules with teeth:
+
+* **No disk is ever filled in for you.** Hard disks, CDs and floppies start
+  empty and stay empty until they are chosen. The ROM starts as the model's
+  own ROM next to the emulator, and the PRAM as the machine's own pram.img.
+* A file field is one control: a path can be typed or pasted straight into
+  it, and double-clicking it opens the chooser.
+"""
+
+from __future__ import annotations
+
+import tkinter as tk
+from pathlib import Path
+from tkinter import ttk, filedialog, messagebox
+
+from . import model, paths, systems
+from .model import Machine, ScsiDrive, Floppy, Network, Share
+from .systems import ICOUNT_SHIFT, machine_labels, machine_by_label, machine_type
+from .ui_dialogs import show_validation, CreateDiskDialog, ToolTip, HD_SC_SETUP_NOTE
+
+KIND_LABELS = {"": "Empty", "disk": "Hard disk", "cdrom": "CD-ROM"}
+KIND_BY_LABEL = {v: k for k, v in KIND_LABELS.items()}
+IMAGE_TYPES = [("Hard disks and CDs", "*.img *.dsk *.hfv *.qcow2 *.iso *.toast *.cdr *.raw"),
+               ("Every file", "*")]
+ROM_TYPES = [("ROM files", "*.rom *.ROM *.bin"), ("Every file", "*")]
+PRAM_TYPES = [("PRAM files", "*.img *.bin"), ("Every file", "*")]
+FLOPPY_TYPES = [("Floppy disks", "*.img *.dsk *.image"), ("Every file", "*")]
+CDROM_EXTS = {".iso", ".toast", ".cdr"}
+
+GREY = "gray"
+
+EDITOR_WIDTH = 760
+
+ICOUNT_TIP = (f"Adds -icount shift={ICOUNT_SHIFT}: the emulated 68040 runs at a fixed speed "
+              "close to the real machine instead of as fast as the host allows. The Quadra "
+              "700 ROM's power-on self tests time the CPU and fail (no chime, or a sad Mac) "
+              "when it is too fast, so it is needed there for now. It makes the Mac slower; "
+              "leave it off on the Quadra 800.")
+EASC_TIP = ("The Quadra 800 has Apple's Enhanced ASC sound chip. Untick to emulate the "
+            "original ASC instead, for software that only knows the older chip.")
+SWAP_TIP = "Swap the Option and Command keys, for a PC keyboard."
+PRAM_TIP = ("The Mac's battery-backed settings: start-up disk, date and time format, "
+            "sound, monitor depth. Kept in this file between runs; empty = forgotten "
+            "every time.")
+
+
+def browse_file(parent, var: tk.StringVar, filetypes, fallback: Path | str | None = None) -> str:
+    start = paths.browse_start_dir(var.get(), fallback)
+    f = filedialog.askopenfilename(parent=parent, initialdir=str(start), filetypes=filetypes)
+    if f:
+        var.set(f)
+        return f
+    return ""
+
+
+class FilePicker:
+    """One control for one file: type a path into it, paste one into it, or
+    double-click it to go and find one."""
+
+    def __init__(self, master, var: tk.StringVar, filetypes, width: int = 40, fallback=None,
+                 on_pick=None):
+        self.var = var
+        self.filetypes = filetypes
+        self.fallback = fallback
+        self.on_pick = on_pick
+        self.entry = ttk.Entry(master, textvariable=var, width=width)
+        self.entry.bind("<Double-Button-1>", self._browse)
+        var.trace_add("write", lambda *_a: self._refresh())
+        self._refresh()
+
+    def grid(self, **kw) -> "FilePicker":
+        self.entry.grid(**kw)
+        return self
+
+    def _refresh(self) -> None:
+        if self.var.get():
+            # a long path is shown from its end, where the file's name is
+            self.entry.xview_moveto(1.0)
+
+    def _browse(self, _e=None):
+        fb = self.fallback() if callable(self.fallback) else self.fallback
+        chosen = browse_file(self.entry.winfo_toplevel(), self.var, self.filetypes, fb)
+        if chosen and self.on_pick:
+            self.on_pick(chosen)
+        return "break"
+
+
+class DriveRow:
+    """One SCSI ID: what is in it and which file it is."""
+
+    def __init__(self, master, row: int, sid: int, fallback=None):
+        self.sid = sid
+        self.kind = tk.StringVar(value=KIND_LABELS[""])
+        self.file = tk.StringVar()
+        self.format = tk.StringVar(value="raw")
+        ttk.Label(master, text=model.scsi_name(sid)).grid(row=row, column=0, sticky="w",
+                                                         padx=(0, 4), pady=1)
+        cb = ttk.Combobox(master, textvariable=self.kind, values=list(KIND_LABELS.values()),
+                          state="readonly", width=9)
+        cb.grid(row=row, column=1, padx=2, pady=1)
+        cb.bind("<<ComboboxSelected>>", self._kind_changed)
+        self.picker = FilePicker(master, self.file, IMAGE_TYPES, width=40,
+                                 fallback=fallback, on_pick=self._file_picked)
+        self.picker.grid(row=row, column=2, sticky="ew", padx=2, pady=1)
+        self.file.trace_add("write", lambda *_a: self._infer_kind())
+        self.format_cb = ttk.Combobox(master, textvariable=self.format, values=model.FORMATS,
+                                      state="readonly", width=6)
+        self.format_cb.grid(row=row, column=3, padx=2)
+
+    def _file_picked(self, path: str):
+        """Only a file chosen through the dialog re-detects the format, so a
+        format set by hand survives until another file is chosen."""
+        self.format.set(model.detect_format(path))
+
+    def _infer_kind(self):
+        """A file chosen while the position still says "Empty" would be
+        dropped on save, so work out from the file name what it is."""
+        if KIND_BY_LABEL[self.kind.get()] or not self.file.get().strip():
+            return
+        ext = Path(self.file.get().strip()).suffix.lower()
+        self.kind.set(KIND_LABELS["cdrom" if ext in CDROM_EXTS else "disk"])
+        self._kind_changed()
+
+    def _kind_changed(self, _e=None):
+        k = KIND_BY_LABEL[self.kind.get()]
+        if not k:
+            # Choosing "Empty" means it: clear the position, or the file left
+            # behind would be re-read as a drive the moment it is saved.
+            self.file.set("")
+            self.format.set("raw")
+        if k == "cdrom":
+            self.format.set("raw")
+        self.format_cb.config(state="readonly" if k == "disk" else "disabled")
+
+    def set(self, d: ScsiDrive | None):
+        self.kind.set(KIND_LABELS[d.kind if d else ""])
+        self.file.set(d.file if d else "")
+        self.format.set((d.format if d else "raw") or "raw")
+        self.format_cb.config(state="readonly" if d and d.kind == "disk" else "disabled")
+
+    def get(self) -> ScsiDrive | None:
+        self._infer_kind()
+        k = KIND_BY_LABEL[self.kind.get()]
+        if not k or not self.file.get().strip():
+            return None
+        return ScsiDrive(id=self.sid, kind=k, file=self.file.get().strip(),
+                         format=self.format.get() or "raw" if k == "disk" else "raw")
+
+
+class FloppyRow:
+    def __init__(self, master, row: int, index: int, fallback=None):
+        self.file = tk.StringVar()
+        self.readonly = tk.BooleanVar(value=False)
+        ttk.Label(master, text=model.floppy_name(index) + ":").grid(
+            row=row, column=0, sticky="w", padx=(0, 4), pady=1)
+        FilePicker(master, self.file, FLOPPY_TYPES, width=40, fallback=fallback).grid(
+            row=row, column=1, sticky="ew", padx=2, pady=1)
+        ro = ttk.Checkbutton(master, text="Read only", variable=self.readonly)
+        ro.grid(row=row, column=2, sticky="w", padx=(6, 0))
+        ToolTip(ro, "The Mac may write to the disk while it runs, but every change is "
+                    "thrown away when it stops (snapshot=on). Use it for install disks.")
+
+    def set(self, fd: Floppy | None):
+        self.file.set(fd.file if fd else "")
+        self.readonly.set(fd.readonly if fd else False)
+
+    def get(self) -> Floppy | None:
+        f = self.file.get().strip()
+        return Floppy(f, self.readonly.get()) if f else None
+
+
+class MachineEditor(tk.Toplevel):
+    """One machine's settings. ``on_save(machine, old_name)`` runs after
+    checking. With ``is_new`` the same window opens fresh; nothing exists on
+    disk until Save."""
+
+    def __init__(self, parent, machine: Machine, library: model.Library, qemu_dir: str, on_save,
+                 is_new: bool = False):
+        super().__init__(parent)
+        self.machine = machine.copy()
+        self.old_name = machine.name
+        self.is_new = is_new
+        self.library = library
+        self.qemu_dir = qemu_dir
+        self.on_save = on_save
+        self.title("New machine" if is_new else f"{machine.name} — settings")
+        self.resizable(True, True)
+        self.transient(parent)
+
+        self.nb = ttk.Notebook(self)
+        self.nb.pack(fill="both", expand=True, padx=6, pady=6)
+        self._build_machine()
+        self._build_display()
+        self._build_drives()
+        self._build_net_audio()
+        self._build_share()
+        self._build_advanced()
+
+        bar = ttk.Frame(self)
+        bar.pack(fill="x", padx=6, pady=(0, 6))
+        self.msg = ttk.Label(bar, text="", foreground=GREY, wraplength=EDITOR_WIDTH - 200)
+        self.msg.pack(side="left", fill="x", expand=True)
+        ttk.Button(bar, text="Cancel", command=self.destroy).pack(side="right", padx=2)
+        ttk.Button(bar, text="Save", command=self.save).pack(side="right", padx=2)
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.load(self.machine)
+        self._size_window()
+        self._centre_on(parent)
+        self.nb.select(0)                       # the Machine page, always first
+        self.name_entry.focus_set()
+
+    def _size_window(self):
+        """No taller than the screen it has to fit on."""
+        self.update_idletasks()
+        height = min(self.winfo_reqheight(), max(400, self.winfo_screenheight() - 160))
+        self.geometry(f"{max(EDITOR_WIDTH, self.winfo_reqwidth())}x{height}")
+        self.minsize(640, 400)
+
+    def _centre_on(self, parent):
+        self.update_idletasks()
+        w, h = self.winfo_width(), self.winfo_height()
+        if w <= 1 or h <= 1:
+            w, h = EDITOR_WIDTH, self.winfo_reqheight()
+        try:
+            top = parent.winfo_toplevel()
+            top.update_idletasks()
+            x = top.winfo_rootx() + (top.winfo_width() - w) // 2
+            y = top.winfo_rooty() + (top.winfo_height() - h) // 2
+        except tk.TclError:
+            return
+        x = max(0, min(x, self.winfo_screenwidth() - w))
+        y = max(0, min(y, self.winfo_screenheight() - h - 40))
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+    def machine_folder(self) -> Path:
+        """Where this machine's own files live, named after the machine."""
+        name = self.name_var.get().strip() or self.old_name
+        return self.library.folder(name) if name else self.library.root
+
+    @property
+    def machine_id(self) -> str:
+        return machine_by_label(self.type_var.get()).id
+
+    # ---------------- tabs
+    def _tab(self, title: str) -> ttk.Frame:
+        f = ttk.Frame(self.nb, padding=8)
+        self.nb.add(f, text=title)
+        return f
+
+    @staticmethod
+    def _heading(f, row: int, text: str, pady=(0, 4)):
+        ttk.Label(f, text=text, font=("", 0, "bold")).grid(
+            row=row, column=0, columnspan=4, sticky="w", pady=pady)
+
+    def _build_machine(self):
+        f = self._tab("Machine")
+        f.columnconfigure(1, weight=1)
+        r = 0
+        ttk.Label(f, text="Name:").grid(row=r, column=0, sticky="w", pady=4)
+        self.name_var = tk.StringVar()
+        self.name_entry = ttk.Entry(f, textvariable=self.name_var, width=40)
+        self.name_entry.grid(row=r, column=1, columnspan=2, sticky="ew", pady=4)
+        r += 1
+        ttk.Label(f, text="Machine:").grid(row=r, column=0, sticky="w", pady=4)
+        self.type_var = tk.StringVar()
+        type_box = ttk.Combobox(f, textvariable=self.type_var, values=machine_labels(),
+                                state="readonly", width=26)
+        type_box.grid(row=r, column=1, sticky="w", pady=4)
+        type_box.bind("<<ComboboxSelected>>", self._type_chosen)
+        r += 1
+        ttk.Label(f, text="Memory (MB):").grid(row=r, column=0, sticky="w", pady=4)
+        self.ram_var = tk.StringVar()
+        self.ram_cb = ttk.Combobox(f, textvariable=self.ram_var, width=10)
+        self.ram_cb.grid(row=r, column=1, sticky="w", pady=4)
+        r += 1
+        self.ram_hint = ttk.Label(f, text="", foreground=GREY)
+        self.ram_hint.grid(row=r, column=1, columnspan=2, sticky="w")
+        r += 1
+        ttk.Label(f, text="ROM:").grid(row=r, column=0, sticky="w", pady=4)
+        self.rom_var = tk.StringVar()
+        FilePicker(f, self.rom_var, ROM_TYPES, width=40,
+                   fallback=lambda: self.qemu_dir).grid(row=r, column=1, columnspan=2,
+                                                        sticky="ew", pady=4)
+        r += 1
+        ttk.Label(f, text="A plain name is looked for next to qemu-system-m68k",
+                  foreground=GREY).grid(row=r, column=1, columnspan=2, sticky="w")
+        r += 1
+        pl = ttk.Label(f, text="PRAM file:")
+        pl.grid(row=r, column=0, sticky="w", pady=4)
+        ToolTip(pl, PRAM_TIP)
+        self.pram_var = tk.StringVar()
+        FilePicker(f, self.pram_var, PRAM_TYPES, width=30,
+                   fallback=self.machine_folder).grid(row=r, column=1, sticky="ew", pady=4)
+        ttk.Button(f, text="New blank PRAM…", command=self._new_pram).grid(
+            row=r, column=2, sticky="w", padx=(6, 0))
+        r += 1
+        ttk.Label(f, text="pram.img = this machine's own, in its folder",
+                  foreground=GREY).grid(row=r, column=1, columnspan=2, sticky="w")
+        r += 1
+        ttk.Separator(f).grid(row=r, column=0, columnspan=3, sticky="ew", pady=10)
+        r += 1
+        self._heading(f, r, "Speed")
+        r += 1
+        self.icount_var = tk.BooleanVar(value=False)
+        cb = ttk.Checkbutton(f, text=f"Run at real-machine speed (-icount shift={ICOUNT_SHIFT})",
+                             variable=self.icount_var)
+        cb.grid(row=r, column=0, columnspan=3, sticky="w")
+        ToolTip(cb, ICOUNT_TIP)
+        r += 1
+        ttk.Label(f, text="Needed by the Quadra 700 ROM for now",
+                  foreground=GREY).grid(row=r, column=0, columnspan=3, sticky="w")
+
+    def _new_pram(self):
+        """Point the machine at its own pram.img and make it blank: offered,
+        never done behind the person's back if a PRAM is already there."""
+        if not self.name_var.get().strip():
+            messagebox.showinfo("New blank PRAM", "Give this machine a name first.", parent=self)
+            return
+        target = self.machine_folder() / model.PRAM_NAME
+        if target.exists():
+            if not messagebox.askyesno(
+                    "New blank PRAM",
+                    f"{target} is already there. Clear it, so the Mac forgets its start-up "
+                    "disk and control panel settings?", icon="warning", default="no",
+                    parent=self):
+                return
+            try:
+                target.write_bytes(b"\0" * model.PRAM_SIZE)
+            except OSError as e:
+                messagebox.showerror("New blank PRAM", str(e), parent=self)
+                return
+        else:
+            try:
+                model.write_blank_pram(target)
+            except OSError as e:
+                messagebox.showerror("New blank PRAM", str(e), parent=self)
+                return
+        self.pram_var.set(model.PRAM_NAME)
+        self.msg.config(text=f"Blank PRAM: {target}")
+
+    def _build_display(self):
+        f = self._tab("Display")
+        f.columnconfigure(1, weight=1)
+        self._heading(f, 0, "Monitor")
+        ttk.Label(f, text="Screen:").grid(row=1, column=0, sticky="w", pady=4)
+        self.screen_var = tk.StringVar()
+        self.screen_cb = ttk.Combobox(f, textvariable=self.screen_var, state="readonly", width=34)
+        self.screen_cb.grid(row=1, column=1, sticky="w", pady=4)
+        ttk.Label(f, text="Where to start; Mac OS can switch in the Monitors control panel",
+                  foreground=GREY).grid(row=2, column=1, sticky="w")
+        ttk.Separator(f).grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
+        self._heading(f, 4, "Display type")
+        ttk.Label(f, text="Display:").grid(row=5, column=0, sticky="w", pady=4)
+        self.display_var = tk.StringVar()
+        dcb = ttk.Combobox(f, textvariable=self.display_var,
+                           values=list(model.displays_for_host()), state="readonly", width=10)
+        dcb.grid(row=5, column=1, sticky="w", pady=4)
+        dcb.bind("<<ComboboxSelected>>", self._display_changed)
+        self.swap_var = tk.BooleanVar(value=False)
+        self.swap_cb = ttk.Checkbutton(f, text="Swap Option and Command (cocoa)",
+                                       variable=self.swap_var)
+        self.swap_cb.grid(row=6, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ToolTip(self.swap_cb, SWAP_TIP)
+
+    def _display_changed(self, _e=None):
+        self.swap_cb.config(state="normal" if self.display_var.get() == "cocoa" else "disabled")
+
+    def _build_drives(self):
+        f = self._tab("Drives")
+        f.columnconfigure(0, weight=1)
+        r = 0
+        self._heading(f, r, "SCSI")
+        r += 1
+        scsi = ttk.Frame(f)
+        scsi.grid(row=r, column=0, sticky="ew")
+        scsi.columnconfigure(2, weight=1)
+        for c, h in enumerate(("ID", "", "Image", "Format")):
+            ttk.Label(scsi, text=h, foreground=GREY).grid(row=0, column=c, sticky="w", padx=4)
+        self.scsi_rows = [DriveRow(scsi, sid + 1, sid, fallback=self.machine_folder)
+                          for sid in model.SCSI_IDS]
+        self_row = model.SCSI_SELF_ID + 1
+        ttk.Label(scsi, text=model.scsi_name(model.SCSI_SELF_ID)).grid(
+            row=self_row, column=0, sticky="w", padx=(0, 4), pady=1)
+        ttk.Label(scsi, text=model.SCSI_SELF_LABEL, foreground=GREY).grid(
+            row=self_row, column=1, columnspan=3, sticky="w", padx=2, pady=1)
+        r += 1
+        ttk.Label(f, text="CD-ROMs are read only. Usual places: hard disk 0, CD-ROM 3.",
+                  foreground=GREY).grid(row=r, column=0, sticky="w", padx=4, pady=(6, 0))
+        r += 1
+        bar = ttk.Frame(f)
+        bar.grid(row=r, column=0, sticky="ew", pady=(8, 2))
+        have_img = paths.qemu_img_binary().is_file()
+        ttk.Button(bar, text="Create new disk image…", command=self._create_disk,
+                   state=("normal" if have_img else "disabled")).pack(side="left", padx=4)
+        if not have_img:
+            ttk.Label(bar, text=f"{paths.qemu_img_name()} not found",
+                      foreground=GREY).pack(side="left", padx=6)
+        r += 1
+        ttk.Label(f, text=HD_SC_SETUP_NOTE, foreground=GREY, wraplength=EDITOR_WIDTH - 60,
+                  justify="left").grid(row=r, column=0, sticky="w", padx=4)
+        r += 1
+        ttk.Separator(f).grid(row=r, column=0, sticky="ew", pady=8)
+        r += 1
+        self._heading(f, r, "Floppy")
+        r += 1
+        fd = ttk.Frame(f)
+        fd.grid(row=r, column=0, sticky="ew")
+        fd.columnconfigure(1, weight=1)
+        self.floppy_rows = [FloppyRow(fd, i, i, fallback=self.machine_folder)
+                            for i in range(model.FLOPPY_DRIVES)]
+        r += 1
+        ttk.Label(f, text="1.44 MB raw images only; 400K and 800K disks do not work yet.",
+                  foreground=GREY).grid(row=r, column=0, sticky="w", padx=4, pady=(6, 0))
+        r += 1
+        ttk.Label(f, text="Start-up: a bootable floppy or CD-ROM is used first, then the "
+                          "disk set in the Startup Disk control panel.",
+                  foreground=GREY, wraplength=EDITOR_WIDTH - 60, justify="left").grid(
+            row=r, column=0, sticky="w", padx=4, pady=(4, 0))
+
+    def _build_net_audio(self):
+        f = self._tab("Network & sound")
+        self._heading(f, 0, "Network")
+        ttk.Label(f, text="Connection:").grid(row=1, column=0, sticky="w")
+        self.net_mode = tk.StringVar(value=model.network_mode_label("user"))
+        self.net_mode_cb = ttk.Combobox(f, textvariable=self.net_mode, state="readonly", width=18,
+                                        values=model.network_labels_for_host(paths.HOST_PLATFORM))
+        self.net_mode_cb.grid(row=1, column=1, sticky="w")
+        self.net_mode_cb.bind("<<ComboboxSelected>>", self._net_mode_changed)
+        ttk.Label(f, text="vmnet needs the administrator password",
+                  foreground=GREY).grid(row=1, column=2, sticky="w", padx=6)
+        self.ifname_label = ttk.Label(f, text=model.ifname_label(paths.HOST_PLATFORM))
+        self.ifname_label.grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.ifname_var = tk.StringVar()
+        self.ifname_entry = ttk.Entry(f, textvariable=self.ifname_var, width=28)
+        self.ifname_entry.grid(row=2, column=1, sticky="w", pady=(6, 0))
+        ttk.Label(f, text="Card MAC address:").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        self.mac_var = tk.StringVar()
+        ttk.Entry(f, textvariable=self.mac_var, width=22).grid(
+            row=3, column=1, sticky="w", pady=(6, 0))
+        ttk.Button(f, text="New address", command=lambda: self.mac_var.set(model.random_mac())
+                   ).grid(row=3, column=2, sticky="w", padx=6, pady=(6, 0))
+        ff = ttk.Frame(f)
+        ff.grid(row=4, column=0, columnspan=3, sticky="w", pady=(10, 0))
+        ttk.Label(ff, text="Port forwarding", font=("", 0, "bold")).grid(
+            row=0, column=0, columnspan=5, sticky="w")
+        ttk.Label(ff, text="Slirp only; host ports below 1024 start with sudo",
+                  foreground=GREY).grid(row=1, column=0, columnspan=5, sticky="w", pady=(0, 4))
+        for c, t in enumerate(("Protocol", "Host port", "Guest port")):
+            ttk.Label(ff, text=t, foreground=GREY).grid(row=2, column=c, sticky="w", padx=(0, 6))
+        self.fwd_rows = []
+        for i in range(model.HOSTFWD_ROWS):
+            proto = tk.StringVar(value="tcp")
+            hp, gp = tk.StringVar(), tk.StringVar()
+            w = [ttk.Combobox(ff, textvariable=proto, state="readonly", width=5,
+                              values=list(model.HOSTFWD_PROTOS)),
+                 ttk.Entry(ff, textvariable=hp, width=8),
+                 ttk.Entry(ff, textvariable=gp, width=8)]
+            for c, x in enumerate(w):
+                x.grid(row=3 + i, column=c, sticky="w", padx=(0, 6), pady=1)
+            self.fwd_rows.append((proto, hp, gp, w))
+        ttk.Separator(f).grid(row=5, column=0, columnspan=3, sticky="ew", pady=10)
+        self._heading(f, 6, "Sound")
+        self.audio_var = tk.StringVar(value="default")
+        ttk.Radiobutton(f, text=model.default_audio_label(paths.HOST_PLATFORM),
+                        variable=self.audio_var, value="default").grid(
+            row=7, column=0, columnspan=3, sticky="w")
+        ttk.Radiobutton(f, text="SDL", variable=self.audio_var, value="sdl").grid(
+            row=8, column=0, columnspan=3, sticky="w")
+        ttk.Radiobutton(f, text="None", variable=self.audio_var, value="none").grid(
+            row=9, column=0, columnspan=3, sticky="w")
+        self.easc_var = tk.BooleanVar(value=True)
+        self.easc_cb = ttk.Checkbutton(f, text="Enhanced ASC (Quadra 800)",
+                                       variable=self.easc_var)
+        self.easc_cb.grid(row=10, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        ToolTip(self.easc_cb, EASC_TIP)
+
+    def _net_mode_changed(self, _e=None):
+        mode = model.network_mode_by_label(self.net_mode.get())
+        if mode in model.NETWORK_MODES_WITH_IFNAME:
+            self.ifname_entry.config(state="normal")
+            if not self.ifname_var.get():
+                self.ifname_var.set(model.default_ifname(mode, paths.HOST_PLATFORM))
+        else:
+            self.ifname_entry.config(state="disabled")
+        for *_v, widgets in self.fwd_rows:
+            for i, w in enumerate(widgets):
+                w.config(state=("readonly" if i == 0 else "normal") if mode == "user"
+                         else "disabled")
+
+    def _build_share(self):
+        f = self._tab("Shared folder")
+        f.columnconfigure(1, weight=1)
+        self._heading(f, 0, "Shared folder")
+        ttk.Label(f, text="Folder:").grid(row=1, column=0, sticky="w", pady=4)
+        self.share_folder_var = tk.StringVar()
+        ttk.Entry(f, textvariable=self.share_folder_var, width=40).grid(
+            row=1, column=1, sticky="ew", pady=4)
+        ttk.Button(f, text="Choose…", command=self._choose_share_folder).grid(
+            row=1, column=2, sticky="w", padx=4, pady=4)
+        self.share_ftp = tk.BooleanVar(value=False)
+        ttk.Checkbutton(f, text="Serve over FTP", variable=self.share_ftp,
+                        command=self._share_changed).grid(row=2, column=0, columnspan=3,
+                                                          sticky="w", pady=(8, 0))
+        ttk.Label(f, text="User:").grid(row=3, column=0, sticky="w", pady=4)
+        self.share_user_var = tk.StringVar(value=Share().user)
+        self.share_user_entry = ttk.Entry(f, textvariable=self.share_user_var, width=20)
+        self.share_user_entry.grid(row=3, column=1, sticky="w", pady=4)
+        ttk.Label(f, text="Password:").grid(row=4, column=0, sticky="w", pady=4)
+        self.share_password_var = tk.StringVar()
+        self.share_password_entry = ttk.Entry(f, textvariable=self.share_password_var,
+                                              width=20, show="*")
+        self.share_password_entry.grid(row=4, column=1, sticky="w", pady=4)
+        self.share_scope = tk.StringVar(value="guest-only")
+        self.share_scope_rbs = [
+            ttk.Radiobutton(f, text="Guest only", variable=self.share_scope, value="guest-only"),
+            ttk.Radiobutton(f, text="All interfaces", variable=self.share_scope,
+                            value="all-interfaces")]
+        self.share_scope_rbs[0].grid(row=5, column=0, columnspan=3, sticky="w")
+        self.share_scope_rbs[1].grid(row=6, column=0, columnspan=3, sticky="w")
+        ttk.Label(f, text="All interfaces needs a password and is for vmnet",
+                  foreground=GREY).grid(row=7, column=0, columnspan=3, sticky="w", pady=(2, 0))
+        ttk.Label(f, text="In the Mac: ftp://10.0.2.2/ with default (slirp), passive mode",
+                  foreground=GREY).grid(row=8, column=0, columnspan=3, sticky="w")
+        ttk.Label(f, text="Use an FTP program such as Fetch or Anarchie",
+                  foreground=GREY).grid(row=9, column=0, columnspan=3, sticky="w")
+        self._share_changed()
+
+    def _share_changed(self):
+        ftp = "normal" if self.share_ftp.get() else "disabled"
+        for w in (self.share_user_entry, self.share_password_entry, *self.share_scope_rbs):
+            w.config(state=ftp)
+
+    def _choose_share_folder(self):
+        start = paths.browse_start_dir(self.share_folder_var.get(), None)
+        d = filedialog.askdirectory(parent=self, initialdir=str(start))
+        if d:
+            self.share_folder_var.set(d)
+
+    def _build_advanced(self):
+        f = self._tab("Advanced")
+        f.columnconfigure(0, weight=1)
+        self._heading(f, 0, "Additional command line arguments")
+        self.extra_var = tk.StringVar()
+        ttk.Entry(f, textvariable=self.extra_var, width=70).grid(
+            row=1, column=0, sticky="ew")
+        ttk.Label(f, text="Added at the end, e.g. -serial stdio",
+                  foreground=GREY).grid(row=2, column=0, sticky="w", pady=(4, 0))
+
+    # ---------------- machine type
+    def _apply_type_widgets(self, machine_id: str):
+        """Memory choices, screens and the EASC box follow the model."""
+        t = machine_type(machine_id)
+        self.ram_cb.config(values=[str(x) for x in t.ram_choices])
+        self.ram_hint.config(text=f"Up to {t.ram_max} MB; Mac OS is happiest with "
+                                  f"{systems.RAM_COMFORTABLE} MB or less")
+        self.screen_cb.config(values=[s.label for s in t.screens])
+        self.easc_cb.config(state="normal" if t.easc else "disabled")
+
+    def _type_chosen(self, _event=None):
+        """Switching model carries over what fits (model.apply_machine_type)."""
+        new = self.machine_id
+        cur = self.collect()
+        cur.machine = self.shown_type            # what the fields were filled for
+        model.apply_machine_type(cur, new)
+        self.shown_type = cur.machine
+        self._apply_type_widgets(cur.machine)
+        self.rom_var.set(cur.rom)
+        self.ram_var.set(str(cur.ram_mb))
+        self._set_screen(cur.machine, cur.screen)
+        self.icount_var.set(cur.icount)
+
+    def _set_screen(self, machine_id: str, screen_id: str):
+        s = systems.screen_by_id(machine_id, screen_id) or \
+            systems.screen_by_id(machine_id, machine_type(machine_id).screen)
+        self.screen_var.set(s.label if s else "")
+
+    # ---------------- load / collect
+    def load(self, m: Machine):
+        self.name_var.set(m.name)
+        self.type_var.set(m.type.label)
+        self.shown_type = m.machine
+        self._apply_type_widgets(m.machine)
+        self.ram_var.set(str(m.ram_mb))
+        self.rom_var.set(m.rom)
+        self.pram_var.set(m.pram)
+        self.icount_var.set(m.icount)
+        self._set_screen(m.machine, m.screen)
+        self.display_var.set(m.display)
+        self.swap_var.set(m.swap_opt_cmd)
+        self._display_changed()
+        for sid, row in enumerate(self.scsi_rows):
+            row.set(m.scsi_by_id(sid))
+        for i, row in enumerate(self.floppy_rows):
+            row.set(m.floppies[i] if i < len(m.floppies) else None)
+        self.net_mode_cb.config(
+            values=model.network_labels_for_host(paths.HOST_PLATFORM, m.network.mode))
+        self.net_mode.set(model.network_mode_label(m.network.mode))
+        self.mac_var.set(m.network.mac)
+        self.ifname_var.set(m.network.ifname)
+        for i, (proto, hp, gp, _w) in enumerate(self.fwd_rows):
+            r = m.network.hostfwd[i] if i < len(m.network.hostfwd) else model.HostFwd()
+            proto.set(r.proto if r.proto in model.HOSTFWD_PROTOS else "tcp")
+            hp.set(r.host_port)
+            gp.set(r.guest_port)
+        self._net_mode_changed()
+        self.audio_var.set(m.audio)
+        self.easc_var.set(m.easc)
+        self.share_folder_var.set(m.share.folder)
+        self.share_user_var.set(m.share.user)
+        self.share_password_var.set(m.share.password)
+        self.share_scope.set(m.share.scope)
+        self.share_ftp.set(m.share.ftp)
+        self._share_changed()
+        self.extra_var.set(m.extra_args)
+
+    def collect(self) -> Machine:
+        m = self.machine.copy()
+        m.name = self.name_var.get().strip()
+        m.machine = self.machine_id
+        try:
+            m.ram_mb = int(self.ram_var.get().strip())
+        except ValueError:
+            m.ram_mb = -1
+        m.rom = self.rom_var.get().strip()
+        m.pram = self.pram_var.get().strip()
+        m.icount = self.icount_var.get()
+        s = systems.screen_by_label(m.machine, self.screen_var.get())
+        m.screen = s.id if s else ""
+        m.display = self.display_var.get()
+        m.swap_opt_cmd = self.swap_var.get()
+        m.scsi = [d for d in (row.get() for row in self.scsi_rows) if d]
+        m.floppies = [row.get() for row in self.floppy_rows]
+        mode = model.network_mode_by_label(self.net_mode.get())
+        ifname = self.ifname_var.get().strip() if mode in model.NETWORK_MODES_WITH_IFNAME else ""
+        fwd = [model.HostFwd(p.get(), h.get().strip(), g.get().strip())
+               for p, h, g, _w in self.fwd_rows]
+        m.network = Network(mode, self.mac_var.get().strip(), ifname, fwd)
+        m.audio = self.audio_var.get()
+        m.easc = self.easc_var.get()
+        m.share = Share(self.share_folder_var.get().strip(), self.share_user_var.get().strip(),
+                        self.share_password_var.get(), self.share_scope.get(),
+                        self.share_ftp.get())
+        m.extra_args = self.extra_var.get().strip()
+        return m
+
+    # ---------------- actions
+    def _create_disk(self):
+        if not self.name_var.get().strip():
+            messagebox.showinfo("New hard disk", "Give this machine a name first.",
+                                parent=self)
+            return
+        cur = self.collect()
+        dlg = CreateDiskDialog(self, cur, self.machine_folder())
+        if not dlg.result:
+            return
+        path, fmt, sid = dlg.result
+        if sid is not None:
+            self.scsi_rows[sid].set(ScsiDrive(sid, "disk", path, fmt))
+        self.msg.config(text=f"Made {Path(path).name}")
+
+    def save(self):
+        m = self.collect()
+        errors, warnings = model.validate(m, self.qemu_dir,
+                                          machine_dir=str(self.machine_folder()))
+        if m.name != self.old_name and self.library.has_record(m.name):
+            errors.append(f"You already have a machine called “{m.name}”.")
+        self.msg.config(text="  ".join(errors + warnings)[:300])
+        if not show_validation(self, errors, warnings):
+            return
+        try:
+            self.on_save(m, self.old_name)
+        except (OSError, ValueError) as e:
+            messagebox.showerror("Save", str(e), parent=self)
+            return
+        self.destroy()

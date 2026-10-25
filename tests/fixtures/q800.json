@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "name": "Quadra 800",
+  "machine": "q800",
+  "ram_mb": 128,
+  "rom": "Quadra800.rom",
+  "pram": "/Applications/Qemu-system-m68k/pram.img",
+  "screen": "800x600x8",
+  "display": "sdl",
+  "icount": false,
+  "audio": "default",
+  "easc": true,
+  "network": {"mode": "user", "mac": "08:00:07:12:34:56"},
+  "scsi": [
+    {"id": 4, "kind": "disk", "file": "/Users/hsp/mac-disks/system8.0.img", "format": "raw"}
+  ],
+  "floppies": [null, null],
+  "extra_args": "",
+  "notes": "Reproduces /Applications/Qemu-system-m68k/qemu-system-m68k-q800.command"
+}

@@ -1,0 +1,314 @@
+"""Golden-output tests for qemugui.command (headless, no Tk).
+
+Run:  python -m pytest tests      or   python -m unittest discover -s tests
+"""
+
+from __future__ import annotations
+
+import shlex
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))
+
+from qemugui import command, model, systems  # noqa: E402
+from qemugui.model import Machine, ScsiDrive, Floppy, HostFwd, Network  # noqa: E402
+
+FIXTURES = HERE / "fixtures"
+QD = "/Applications/Qemu-system-m68k"
+
+# The user's launchers, verbatim from /Applications/Qemu-system-m68k.
+USER_Q800 = r"""
+./qemu-system-m68k \
+-M q800 \
+-drive file=pram.img,format=raw,if=mtd \
+-m 128 \
+-display sdl \
+-bios Quadra800.rom \
+-rtc base=localtime \
+-device scsi-hd,scsi-id=4,drive=disk4 \
+-drive file="/Users/hsp/mac-disks/system8.0.img",media=disk,format=raw,if=none,id=disk4 \
+-nic user,model=dp83932,mac=08:00:07:12:34:56 \
+"""
+
+USER_Q700 = r"""
+./qemu-system-m68k \
+-M q700 \
+-icount shift=6 \
+-drive file=pram-q700.img,format=raw,if=mtd \
+-m 64 \
+-display sdl \
+-bios Quadra700.rom \
+-rtc base=localtime \
+-device scsi-hd,scsi-id=0,drive=disk0 \
+-drive file="/Volumes/Macdata/qemu/hd/aux/system7.1-q700.img",media=disk,format=raw,if=none,id=disk0 \
+-nic user,model=dp83932,mac=08:00:07:12:34:57 \
+"""
+
+
+def user_tokens(text: str) -> list[str]:
+    """A hand-written launcher as tokens, binary dropped, the ROM and PRAM
+    names resolved against the install folder (the script cd's there)."""
+    toks = shlex.split(text.replace("\\\n", " "))
+    assert toks[0] == "./qemu-system-m68k"
+    out = []
+    for i, t in enumerate(toks[1:], 1):
+        if toks[i - 1] == "-bios":
+            t = f"{QD}/{t}"
+        if t.startswith("file=pram"):
+            t = f"file={QD}/{t[len('file='):]}"
+        out.append(t)
+    return out
+
+
+def load_fixture(name: str) -> Machine:
+    return Machine.load(FIXTURES / name)
+
+
+def argv_for(m: Machine, platform: str = "darwin", machine_dir: str = "/M/x") -> list[str]:
+    return command.build_argv(m, QD, machine_dir, platform)
+
+
+def option(argv: list[str], name: str) -> list[str]:
+    """Every value given to option *name*."""
+    return [argv[i + 1] for i, t in enumerate(argv[:-1]) if t == name]
+
+
+class UserLaunchers(unittest.TestCase):
+    """The primary correctness test: the two launchers the user runs today.
+    What the GUI adds on top is spelled out: the sound backend, wired to the
+    machine's sound chip, and the screen."""
+
+    def check(self, fixture: str, text: str, model_id: str, screen: str):
+        got = argv_for(load_fixture(fixture))[1:]
+        want = user_tokens(text)
+        want[want.index(model_id)] = f"{model_id},audiodev=snd"
+        want += ["-g", screen, "-audiodev", "coreaudio,id=snd"]
+        self.assertEqual(sorted(got), sorted(want))
+
+    def test_q800(self):
+        self.check("q800.json", USER_Q800, "q800", "800x600x8")
+
+    def test_q700(self):
+        self.check("q700.json", USER_Q700, "q700", "1152x870x1")
+
+    def test_binary_is_absolute_and_first(self):
+        self.assertEqual(argv_for(load_fixture("q800.json"))[0], f"{QD}/qemu-system-m68k")
+
+    def test_shell_rendering_shape(self):
+        text = command.launcher_text(load_fixture("q700.json"), QD, "/M/x", "darwin")
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "#!/bin/bash")
+        self.assertIn('cd "$(dirname "$0")"', lines)
+        body = [ln for ln in lines if ln.startswith("-") or ln.startswith("/")]
+        for ln in body[:-1]:
+            self.assertTrue(ln.endswith(" \\"), ln)
+        self.assertFalse(body[-1].endswith("\\"))
+        self.assertIn("-M q700,audiodev=snd \\", lines)
+        self.assertIn("-icount shift=6 \\", lines)
+        self.assertIn("-device scsi-hd,scsi-id=0,drive=disk0 \\", lines)
+
+    def test_one_line_round_trips(self):
+        argv = argv_for(load_fixture("q800.json"), machine_dir="/M/Quadra 800")
+        line = command.one_line(argv, "/M/Quadra 800")
+        toks = shlex.split(line)
+        self.assertEqual(toks[:3], ["cd", "/M/Quadra 800", "&&"])
+        self.assertEqual(toks[3:], argv)
+
+
+class Machines(unittest.TestCase):
+    """What a fresh machine of each model starts as."""
+
+    def test_new_q800(self):
+        m = model.new_machine("A", "q800")
+        argv = argv_for(m, machine_dir="/M/A")
+        self.assertEqual(option(argv, "-M"), ["q800,audiodev=snd"])
+        self.assertEqual(option(argv, "-m"), ["128"])
+        self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra800.rom"])
+        self.assertEqual(option(argv, "-g"), ["800x600x8"])
+        self.assertNotIn("-icount", argv)
+        self.assertIn("file=/M/A/pram.img,format=raw,if=mtd", argv)
+        self.assertEqual(option(argv, "-rtc"), ["base=localtime"])
+        self.assertTrue(option(argv, "-nic")[0].startswith("user,model=dp83932,mac=08:00:07:"))
+
+    def test_new_q700(self):
+        m = model.new_machine("B", "q700")
+        argv = argv_for(m, machine_dir="/M/B")
+        self.assertEqual(option(argv, "-M"), ["q700,audiodev=snd"])
+        self.assertEqual(option(argv, "-icount"), ["shift=6"])
+        self.assertEqual(option(argv, "-m"), ["64"])
+        self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra700.rom"])
+        self.assertEqual(option(argv, "-g"), ["1152x870x1"])
+
+    def test_icount_is_a_choice_on_either(self):
+        m = model.new_machine("B", "q700")
+        m.icount = False
+        self.assertNotIn("-icount", argv_for(m))
+        m = model.new_machine("A", "q800")
+        m.icount = True
+        self.assertEqual(option(argv_for(m), "-icount"), [f"shift={systems.ICOUNT_SHIFT}"])
+
+    def test_easc_off_only_on_the_quadra_800(self):
+        m = model.new_machine("A", "q800")
+        m.easc = False
+        self.assertEqual(option(argv_for(m), "-M"), ["q800,audiodev=snd,easc=off"])
+        m = model.new_machine("B", "q700")
+        m.easc = False                     # no such property there: ignored
+        self.assertEqual(option(argv_for(m), "-M"), ["q700,audiodev=snd"])
+
+    def test_every_screen_in_the_table_is_a_valid_g(self):
+        for mid, screens in systems.SCREENS.items():
+            for s in screens:
+                m = model.new_machine("A", mid)
+                m.screen = s.id
+                self.assertEqual(option(argv_for(m), "-g"), [f"{s.width}x{s.height}x{s.depth}"])
+                self.assertEqual(model.validate(m, None, check_files=False)[0], [])
+
+
+class Drives(unittest.TestCase):
+
+    def test_scsi_disk_and_cd(self):
+        m = model.new_machine("A", "q800")
+        m.scsi = [ScsiDrive(3, "cdrom", "/iso/7.5.3.iso"), ScsiDrive(0, "disk", "/hd/8.1.img")]
+        argv = argv_for(m)
+        devs = option(argv, "-device")
+        self.assertEqual(devs, ["scsi-hd,scsi-id=0,drive=disk0", "scsi-cd,scsi-id=3,drive=cd3"])
+        drives = option(argv, "-drive")
+        self.assertIn("file=/hd/8.1.img,media=disk,format=raw,if=none,id=disk0", drives)
+        self.assertIn("file=/iso/7.5.3.iso,media=cdrom,format=raw,readonly=on,if=none,id=cd3",
+                      drives)
+
+    def test_relative_image_resolves_in_the_machine_folder(self):
+        m = model.new_machine("A", "q800")
+        m.scsi = [ScsiDrive(1, "disk", "hd.img")]
+        self.assertIn("file=/M/A/hd.img,media=disk,format=raw,if=none,id=disk1",
+                      option(argv_for(m, machine_dir="/M/A"), "-drive"))
+
+    def test_a_comma_in_a_path_is_doubled(self):
+        m = model.new_machine("A", "q800")
+        m.scsi = [ScsiDrive(0, "disk", "/hd/a,b.img")]
+        self.assertIn("file=/hd/a,,b.img,media=disk,format=raw,if=none,id=disk0",
+                      option(argv_for(m), "-drive"))
+
+    def test_qcow2_is_detected(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "x.img"
+            p.write_bytes(b"QFI\xfb" + b"\0" * 100)
+            m = model.new_machine("A", "q800")
+            m.scsi = [ScsiDrive(0, "disk", str(p), "raw")]
+            self.assertIn(f"file={p},media=disk,format=qcow2,if=none,id=disk0",
+                          option(argv_for(m), "-drive"))
+
+    def test_floppies(self):
+        m = model.new_machine("A", "q800")
+        m.floppies = [Floppy("/fd/Disk Tools.img", readonly=True), Floppy("/fd/b.img")]
+        drives = option(argv_for(m), "-drive")
+        self.assertIn("file=/fd/Disk Tools.img,if=floppy,index=0,format=raw,snapshot=on", drives)
+        self.assertIn("file=/fd/b.img,if=floppy,index=1,format=raw", drives)
+
+    def test_second_floppy_alone_keeps_its_index(self):
+        m = model.new_machine("A", "q800")
+        m.floppies = [None, Floppy("/fd/b.img")]
+        self.assertIn("file=/fd/b.img,if=floppy,index=1,format=raw", option(argv_for(m), "-drive"))
+
+    def test_no_pram(self):
+        m = model.new_machine("A", "q800")
+        m.pram = ""
+        self.assertFalse([d for d in option(argv_for(m), "-drive") if "if=mtd" in d])
+
+    def test_pram_elsewhere(self):
+        m = model.new_machine("A", "q800")
+        m.pram = "/Applications/Qemu-system-m68k/pram.img"
+        self.assertIn("file=/Applications/Qemu-system-m68k/pram.img,format=raw,if=mtd",
+                      option(argv_for(m), "-drive"))
+
+
+class DisplayAndSound(unittest.TestCase):
+
+    def test_cocoa_swap(self):
+        m = model.new_machine("A", "q800")
+        m.display = "cocoa"
+        self.assertEqual(option(argv_for(m), "-display"), ["cocoa"])
+        m.swap_opt_cmd = True
+        self.assertEqual(option(argv_for(m), "-display"), ["cocoa,swap-opt-cmd=on"])
+        m.display = "sdl"
+        self.assertEqual(option(argv_for(m), "-display"), ["sdl"])
+
+    def test_audio_backends(self):
+        m = model.new_machine("A", "q800")
+        self.assertEqual(option(argv_for(m, "darwin"), "-audiodev"), ["coreaudio,id=snd"])
+        self.assertEqual(option(argv_for(m, "linux"), "-audiodev"), ["sdl,id=snd"])
+        m.audio = "none"
+        self.assertEqual(option(argv_for(m), "-audiodev"), ["none,id=snd"])
+
+
+class Network_(unittest.TestCase):
+
+    def nic(self, **kw) -> str:
+        m = model.new_machine("A", "q800")
+        m.network = Network(mac="08:00:07:01:02:03", **kw)
+        return option(argv_for(m), "-nic")[0]
+
+    def test_modes(self):
+        self.assertEqual(self.nic(mode="user"), "user,model=dp83932,mac=08:00:07:01:02:03")
+        self.assertEqual(self.nic(mode="none"), "none")
+        self.assertEqual(self.nic(mode="vmnet-shared"),
+                         "vmnet-shared,model=dp83932,mac=08:00:07:01:02:03")
+        self.assertEqual(self.nic(mode="vmnet-bridged", ifname="en0"),
+                         "vmnet-bridged,ifname=en0,model=dp83932,mac=08:00:07:01:02:03")
+
+    def test_port_forwarding(self):
+        self.assertEqual(self.nic(mode="user", hostfwd=[HostFwd("tcp", "8080", "80"), HostFwd()]),
+                         "user,model=dp83932,mac=08:00:07:01:02:03,hostfwd=tcp::8080-:80")
+
+    def test_vmnet_runs_under_sudo(self):
+        m = model.new_machine("A", "q800")
+        m.network.mode = "vmnet-shared"
+        self.assertTrue(command.needs_sudo(m, "darwin"))
+        text = command.launcher_text(m, QD, "/M/A", "darwin")
+        self.assertIn("sudo -v", text)
+        self.assertIn(f"sudo {QD}/qemu-system-m68k \\", text)
+
+    def test_low_port_needs_sudo_high_does_not(self):
+        m = model.new_machine("A", "q800")
+        m.network.hostfwd = [HostFwd("tcp", "80", "80")]
+        self.assertTrue(command.needs_sudo(m, "darwin"))
+        m.network.hostfwd = [HostFwd("tcp", "8080", "80")]
+        self.assertFalse(command.needs_sudo(m, "darwin"))
+        self.assertNotIn("sudo", command.launcher_text(m, QD, "/M/A", "darwin"))
+
+    def test_mac_is_apple_and_stable(self):
+        m = model.new_machine("A", "q800")
+        self.assertRegex(m.network.mac, r"^08:00:07(:[0-9a-f]{2}){3}$")
+        self.assertEqual(Machine.from_json(m.to_json()).network.mac, m.network.mac)
+        self.assertEqual(argv_for(m), argv_for(Machine.from_json(m.to_json())))
+
+
+class ExtraArgsAndWindows(unittest.TestCase):
+
+    def test_extra_args_last(self):
+        m = model.new_machine("A", "q800")
+        m.extra_args = '-serial stdio -name "My Mac"'
+        self.assertEqual(argv_for(m)[-4:], ["-serial", "stdio", "-name", "My Mac"])
+
+    def test_bat(self):
+        m = model.new_machine("Mac OS 8", "q800")
+        m.scsi = [ScsiDrive(0, "disk", r"C:\disks\8.1.img")]
+        argv = command.build_argv(m, r"C:\qemu-m68k", r"C:\Machines\Mac OS 8", "win32")
+        self.assertEqual(argv[0], r"C:\qemu-m68k\qemu-system-m68k.exe")
+        text = command.render_bat(argv, m.name)
+        self.assertIn('cd /d "%~dp0"', text)
+        self.assertIn("title Mac OS 8", text)
+        self.assertIn(r"-bios C:\qemu-m68k\Quadra800.rom", text)
+        self.assertIn('-audiodev "dsound,id=snd"', text)
+        self.assertIn(r'-drive "file=C:\disks\8.1.img,media=disk,format=raw,if=none,id=disk0"',
+                      text)
+        body = [ln for ln in text.split("\r\n") if ln.startswith("-")]
+        self.assertFalse(body[-1].endswith("^"))
+
+
+if __name__ == "__main__":
+    unittest.main()
