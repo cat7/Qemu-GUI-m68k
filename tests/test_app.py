@@ -352,7 +352,7 @@ class Windows(unittest.TestCase):
         e._type_chosen()
         got = e.collect()
         self.assertEqual((got.machine, got.rom, got.ram_mb, got.screen, got.icount),
-                         ("q700", "Quadra700.rom", 64, "1152x870x1", True))
+                         ("q700", "Quadra700.rom", 64, "832x624x8", True))
         self.assertEqual(list(e.screen_cb.cget("values")),
                          [s.label for s in model.machine_type("q700").screens])
         self.assertTrue(e.easc_cb.instate(["disabled"]))

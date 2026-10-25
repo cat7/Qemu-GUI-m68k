@@ -349,7 +349,7 @@ class MachineEditor(tk.Toplevel):
         self.screen_var = tk.StringVar()
         self.screen_cb = ttk.Combobox(f, textvariable=self.screen_var, state="readonly", width=34)
         self.screen_cb.grid(row=1, column=1, sticky="w", pady=4)
-        ttk.Label(f, text="Where to start; Mac OS can switch in the Monitors control panel",
+        ttk.Label(f, text="The size is the monitor; the depth is where Mac OS starts (Monitors control panel)",
                   foreground=GREY).grid(row=2, column=1, sticky="w")
         ttk.Separator(f).grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
         self._heading(f, 4, "Display type")

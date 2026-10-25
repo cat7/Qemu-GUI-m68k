@@ -24,15 +24,20 @@ MAC_PREFIX = "08:00:07"
 
 DEPTH_NAMES = {1: "black & white", 2: "4 colours", 4: "16 colours", 8: "256 colours",
                16: "thousands", 24: "millions"}
+GREY_NAMES = {1: "black & white", 2: "4 greys", 4: "16 greys", 8: "256 greys"}
 
 
 @dataclass(frozen=True)
 class Screen:
-    """One display mode, as -g WIDTHxHEIGHTxDEPTH."""
+    """One display mode, as -g WIDTHxHEIGHTxDEPTH.
+
+    On the Quadra 700 the size picks the monitor (the emulated DAFB reports
+    that monitor's sense code); the depth is only where the Mac starts, and
+    it can switch in the Monitors control panel. 24 means "Millions"."""
     width: int
     height: int
     depth: int
-    note: str = ""               # e.g. "experimental"; shown after the label
+    monitor: str = ""            # the Apple monitor this size is, shown first
 
     @property
     def id(self) -> str:
@@ -40,11 +45,18 @@ class Screen:
 
     @property
     def label(self) -> str:
-        text = f"{self.width} × {self.height}, {DEPTH_NAMES.get(self.depth, f'{self.depth}-bit')}"
-        return f"{text} ({self.note})" if self.note else text
+        names = GREY_NAMES if "greyscale" in self.monitor else DEPTH_NAMES
+        text = f"{self.width} × {self.height}, {names.get(self.depth, f'{self.depth}-bit')}"
+        return f"{self.monitor} — {text}" if self.monitor else text
 
 
 # The monitors each model's built-in video can drive. One line per mode.
+RGB12 = 'Apple 12" RGB'
+RGB13 = 'Apple 13" RGB / VGA'
+PORTRAIT15 = 'Apple 15" Portrait (greyscale)'
+COLOR16 = 'Apple 16" Color'
+COLOR21 = 'Apple 21" Color'
+
 SCREENS: dict[str, tuple[Screen, ...]] = {
     "q800": (
         Screen(640, 480, 1),
@@ -63,8 +75,29 @@ SCREENS: dict[str, tuple[Screen, ...]] = {
         Screen(1152, 870, 8),
     ),
     "q700": (
-        Screen(1152, 870, 1),
-        Screen(640, 480, 1, "experimental"),
+        Screen(512, 384, 1, RGB12),
+        Screen(512, 384, 2, RGB12),
+        Screen(512, 384, 4, RGB12),
+        Screen(512, 384, 8, RGB12),
+        Screen(512, 384, 24, RGB12),
+        Screen(640, 480, 1, RGB13),
+        Screen(640, 480, 2, RGB13),
+        Screen(640, 480, 4, RGB13),
+        Screen(640, 480, 8, RGB13),
+        Screen(640, 480, 24, RGB13),
+        Screen(640, 870, 1, PORTRAIT15),
+        Screen(640, 870, 2, PORTRAIT15),
+        Screen(640, 870, 4, PORTRAIT15),
+        Screen(640, 870, 8, PORTRAIT15),
+        Screen(832, 624, 1, COLOR16),
+        Screen(832, 624, 2, COLOR16),
+        Screen(832, 624, 4, COLOR16),
+        Screen(832, 624, 8, COLOR16),
+        Screen(832, 624, 24, COLOR16),
+        Screen(1152, 870, 1, COLOR21),
+        Screen(1152, 870, 2, COLOR21),
+        Screen(1152, 870, 4, COLOR21),
+        Screen(1152, 870, 8, COLOR21),
     ),
 }
 
@@ -91,7 +124,7 @@ MACHINES: dict[str, MachineType] = {
                         (8, 16, 32, 64, 128, 256, 512, 1024), "800x600x8",
                         icount=False, easc=True),
     "q700": MachineType("q700", "Macintosh Quadra 700", "Quadra700.rom", 64, 256,
-                        (8, 16, 20, 32, 64, 128, 256), "1152x870x1",
+                        (8, 16, 20, 32, 64, 128, 256), "832x624x8",
                         icount=True, easc=False),
 }
 

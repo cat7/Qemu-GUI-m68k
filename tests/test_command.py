@@ -141,7 +141,7 @@ class Machines(unittest.TestCase):
         self.assertEqual(option(argv, "-icount"), ["shift=6"])
         self.assertEqual(option(argv, "-m"), ["64"])
         self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra700.rom"])
-        self.assertEqual(option(argv, "-g"), ["1152x870x1"])
+        self.assertEqual(option(argv, "-g"), ["832x624x8"])
 
     def test_icount_is_a_choice_on_either(self):
         m = model.new_machine("B", "q700")

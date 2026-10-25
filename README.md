@@ -1,8 +1,7 @@
 # Qemu-system-m68k GUI
 
 A portable launcher for the 68k Macintosh machines of `qemu-system-m68k`:
-the Macintosh Quadra 800 (`q800`) and the Macintosh Quadra 700 (`q700`,
-experimental). Needs real Apple ROMs. The program must sit in the same
+the Macintosh Quadra 800 (`q800`) and the Macintosh Quadra 700 (`q700`). Needs real Apple ROMs. The program must sit in the same
 folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 `Machines` folder next to it, one subfolder per machine with its
 `machine.json`, its `pram.img`, a `run.command` and the last run's log.
@@ -15,7 +14,8 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   to the emulator.
 - Memory (`-m`): up to 1024 MB on the Quadra 800, 256 MB on the Quadra 700.
 - PRAM (`-drive ...,if=mtd`): each machine's own 512-byte `pram.img`, made
-  blank when the machine is first saved; "Reset PRAM" clears it.
+  blank when the machine is first saved; "Reset PRAM" clears it. Both
+  models keep their settings there between runs.
 - SCSI IDs 0 to 6: hard disk (`scsi-hd`) or CD-ROM (`scsi-cd`, read only).
   New blank disks are made with `qemu-img`. Apple HD SC Setup makes only a
   20 MB partition on them; use Drive Setup from the 7.6 or 8.0 Disk Tools
@@ -23,7 +23,10 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 - Two floppy drives, 1.44 MB raw images (`if=floppy`); "Read only" throws
   changes away (`snapshot=on`). 400K/800K (GCR) disks do not work yet.
 - Screen (`-g WxHxD`) from the model's monitor list; cocoa (with optional
-  Option/Command swap) or sdl.
+  Option/Command swap) or sdl. On the Quadra 700 the size picks the Apple
+  monitor (12" RGB, 13" RGB/VGA, 15" Portrait, 16" Color, 21" Color) and the
+  depth is only where the Mac starts; it chooses its own depth in the
+  Monitors control panel and keeps it in PRAM. 24 means "Millions".
 - Speed limit (`-icount shift=6`): on by default for the Quadra 700, whose
   ROM self tests need real-machine speed; off for the Quadra 800.
 - Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine
@@ -31,7 +34,10 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 - Sound: ASC through `-audiodev` (CoreAudio on a Mac); Enhanced ASC on the
   Quadra 800 can be turned off.
 - `-rtc base=localtime`. There is no boot device setting: a bootable floppy
-  or CD is used first, then the Startup Disk control panel's choice.
+  or CD is used first, then the Startup Disk control panel's choice. Both
+  models start up from SCSI CD-ROMs (Mac OS 8.1, System 7.5.3) and 1.44 MB
+  floppies; a non-bootable CD mounts once a system with the Apple CD-ROM
+  extension is running.
 - Shared folder over FTP (pyftpdlib): with slirp the Mac reaches it at
   `ftp://10.0.2.2/` (`:2121` when port 21 is taken), passive mode, names in
   Mac Roman.

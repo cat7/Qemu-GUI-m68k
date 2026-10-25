@@ -51,9 +51,18 @@ class TheModelTable(unittest.TestCase):
         self.assertFalse(systems.MACHINES["q800"].icount)
 
     def test_screen_labels(self):
-        s = systems.Screen(640, 480, 1, "experimental")
-        self.assertEqual(s.id, "640x480x1")
-        self.assertEqual(s.label, "640 × 480, black & white (experimental)")
+        s = systems.Screen(832, 624, 8, 'Apple 16" Color')
+        self.assertEqual(s.id, "832x624x8")
+        self.assertEqual(s.label, 'Apple 16" Color — 832 × 624, 256 colours')
+
+    def test_the_q700_monitors(self):
+        sizes = sorted({(s.width, s.height) for s in systems.SCREENS["q700"]})
+        self.assertEqual(sizes, [(512, 384), (640, 480), (640, 870), (832, 624), (1152, 870)])
+        self.assertEqual(len(systems.SCREENS["q700"]), 23)
+        self.assertIsNone(systems.screen_by_id("q700", "800x600x8"))
+        self.assertIsNone(systems.screen_by_id("q700", "640x870x24"))   # greyscale
+        self.assertIsNone(systems.screen_by_id("q700", "1152x870x24"))
+        self.assertTrue(all(s.monitor for s in systems.SCREENS["q700"]))
         self.assertEqual(systems.Screen(800, 600, 24).label, "800 × 600, millions")
 
 
@@ -85,7 +94,7 @@ class Record(unittest.TestCase):
     def test_a_bare_record_takes_its_models_defaults(self):
         m = Machine.from_dict({"name": "x", "machine": "q700"})
         self.assertEqual((m.ram_mb, m.rom, m.screen, m.icount, m.pram),
-                         (64, "Quadra700.rom", "1152x870x1", True, "pram.img"))
+                         (64, "Quadra700.rom", "832x624x8", True, "pram.img"))
         self.assertRegex(m.network.mac, r"^08:00:07:")
         self.assertEqual(m.floppies, [None, None])
 
@@ -107,10 +116,13 @@ class SwitchingModel(unittest.TestCase):
         m = model.new_machine("x", "q800")
         model.apply_machine_type(m, "q700")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.screen, m.icount),
-                         ("q700", "Quadra700.rom", 64, "1152x870x1", True))
+                         ("q700", "Quadra700.rom", 64, "832x624x8", True))
         model.apply_machine_type(m, "q800")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.icount), ("q800", "Quadra800.rom", 128, False))
-        self.assertEqual(m.screen, "1152x870x1")     # the q800 offers it too: kept
+        self.assertEqual(m.screen, "800x600x8")      # no 832x624 there: its default
+        m.screen = "1152x870x8"
+        model.apply_machine_type(m, "q700")
+        self.assertEqual(m.screen, "1152x870x8")     # the q700 offers it too: kept
 
     def test_own_choices_are_kept_where_they_fit(self):
         m = model.new_machine("x", "q800")
