@@ -16,8 +16,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # -icount shift=N runs the CPU at a fixed speed (2^N ns per instruction):
-# shift=6 is roughly a real 25 MHz 68040.
+# shift=6 is roughly a real 25 MHz 68040. align=on keeps the Mac's clock in
+# step with real time; without it a fast host runs the clock several times
+# too fast, and key repeat and double-click times shrink with it.
 ICOUNT_SHIFT = 6
+ICOUNT_OPTION = f"shift={ICOUNT_SHIFT},align=on"
+
+# The emulated ADB mouse passes on this percentage of the host's motion
+# (-global adb-mouse.speed=N). The host has already accelerated the motion
+# and Mac OS accelerates it again, so the emulator's default is 50.
+MOUSE_SPEEDS = (25, 35, 50, 75, 100, 150)
+DEFAULT_MOUSE_SPEED = 50
 
 # Apple's own Ethernet prefix, which the Mac OS network drivers expect.
 MAC_PREFIX = "08:00:07"

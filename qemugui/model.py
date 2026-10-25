@@ -310,6 +310,15 @@ class Share:
         return self.enabled and self.ftp
 
 
+def _mouse_speed(v) -> int:
+    """A saved mouse speed, or the default if missing or out of range."""
+    try:
+        v = int(v)
+    except (TypeError, ValueError):
+        return systems.DEFAULT_MOUSE_SPEED
+    return v if 1 <= v <= 400 else systems.DEFAULT_MOUSE_SPEED
+
+
 @dataclass
 class Machine:
     name: str = "New machine"
@@ -320,7 +329,8 @@ class Machine:
     screen: str = "800x600x8"    # a systems.Screen id, -g
     display: str = "cocoa"
     swap_opt_cmd: bool = False   # cocoa only
-    icount: bool = False         # -icount shift=ICOUNT_SHIFT
+    icount: bool = False         # -icount ICOUNT_OPTION
+    mouse_speed: int = 50        # percent, -global adb-mouse.speed
     audio: str = "default"
     easc: bool = True            # q800 only: Enhanced ASC (off = plain ASC)
     network: Network = field(default_factory=Network)
@@ -348,6 +358,7 @@ class Machine:
             "display": self.display,
             "swap_opt_cmd": self.swap_opt_cmd,
             "icount": self.icount,
+            "mouse_speed": self.mouse_speed,
             "audio": self.audio,
             "easc": self.easc,
             "network": self.network.to_dict(),
@@ -377,6 +388,7 @@ class Machine:
             display=str(d.get("display") or default_display()),
             swap_opt_cmd=bool(d.get("swap_opt_cmd", False)),
             icount=bool(d.get("icount", t.icount)),
+            mouse_speed=_mouse_speed(d.get("mouse_speed")),
             audio=str(d.get("audio", "default")),
             easc=bool(d.get("easc", True)),
             network=Network.from_dict(d.get("network")),

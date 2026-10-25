@@ -86,6 +86,8 @@ class UserLaunchers(unittest.TestCase):
         got = argv_for(load_fixture(fixture))[1:]
         want = user_tokens(text)
         want[want.index(model_id)] = f"{model_id},audiodev=snd"
+        if "shift=6" in want:                    # the GUI keeps the clock in real time
+            want[want.index("shift=6")] = "shift=6,align=on"
         want += ["-g", screen, "-audiodev", "coreaudio,id=snd"]
         self.assertEqual(sorted(got), sorted(want))
 
@@ -108,7 +110,7 @@ class UserLaunchers(unittest.TestCase):
             self.assertTrue(ln.endswith(" \\"), ln)
         self.assertFalse(body[-1].endswith("\\"))
         self.assertIn("-M q700,audiodev=snd \\", lines)
-        self.assertIn("-icount shift=6 \\", lines)
+        self.assertIn("-icount shift=6,align=on \\", lines)
         self.assertIn("-device scsi-hd,scsi-id=0,drive=disk0 \\", lines)
 
     def test_one_line_round_trips(self):
@@ -138,7 +140,7 @@ class Machines(unittest.TestCase):
         m = model.new_machine("B", "q700")
         argv = argv_for(m, machine_dir="/M/B")
         self.assertEqual(option(argv, "-M"), ["q700,audiodev=snd"])
-        self.assertEqual(option(argv, "-icount"), ["shift=6"])
+        self.assertEqual(option(argv, "-icount"), ["shift=6,align=on"])
         self.assertEqual(option(argv, "-m"), ["64"])
         self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra700.rom"])
         self.assertEqual(option(argv, "-g"), ["832x624x8"])
@@ -149,7 +151,22 @@ class Machines(unittest.TestCase):
         self.assertNotIn("-icount", argv_for(m))
         m = model.new_machine("A", "q800")
         m.icount = True
-        self.assertEqual(option(argv_for(m), "-icount"), [f"shift={systems.ICOUNT_SHIFT}"])
+        self.assertEqual(option(argv_for(m), "-icount"), [systems.ICOUNT_OPTION])
+
+    def test_mouse_speed_only_when_not_the_default(self):
+        m = model.new_machine("A", "q800")
+        self.assertNotIn("-global", argv_for(m))
+        m.mouse_speed = 35
+        self.assertEqual(option(argv_for(m), "-global"), ["adb-mouse.speed=35"])
+
+    def test_mouse_speed_round_trips_and_bad_values_fall_back(self):
+        m = model.new_machine("A", "lc475")
+        m.mouse_speed = 75
+        self.assertEqual(Machine.from_dict(m.to_dict()).mouse_speed, 75)
+        for bad in (None, "fast", 0, 999):
+            d = m.to_dict()
+            d["mouse_speed"] = bad
+            self.assertEqual(Machine.from_dict(d).mouse_speed, systems.DEFAULT_MOUSE_SPEED)
 
     def test_easc_off_only_on_the_quadra_800(self):
         m = model.new_machine("A", "q800")

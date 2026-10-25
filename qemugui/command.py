@@ -14,7 +14,7 @@ import shlex
 
 from . import paths, systems
 from .model import Machine, detect_format
-from .systems import ICOUNT_SHIFT
+from .systems import DEFAULT_MOUSE_SPEED, ICOUNT_OPTION
 
 HEADER_NOTE = "Written by Qemu-system-m68k GUI. Do not edit."
 
@@ -168,7 +168,9 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
     audio = paths.resolve_audio(m.audio, platform)
     argv += ["-M", machine_option(m)]
     if m.icount:
-        argv += ["-icount", f"shift={ICOUNT_SHIFT}"]
+        argv += ["-icount", ICOUNT_OPTION]
+    if m.mouse_speed != DEFAULT_MOUSE_SPEED:
+        argv += ["-global", f"adb-mouse.speed={int(m.mouse_speed)}"]
     argv += ["-m", str(int(m.ram_mb))]
     if m.rom:
         # No ROM chosen: the option is left out rather than pointing at a

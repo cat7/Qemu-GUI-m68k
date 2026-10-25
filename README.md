@@ -37,8 +37,12 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   monitor (12" RGB, 13" RGB/VGA, 15" Portrait, 16" Color, 21" Color) and the
   depth is only where the Mac starts; it chooses its own depth in the
   Monitors control panel and keeps it in PRAM. 24 means "Millions".
-- Speed limit (`-icount shift=6`): on by default for the Quadra 700, whose
-  ROM self tests need real-machine speed; off for the Quadra 800.
+- Speed limit (`-icount shift=6,align=on`): on by default for the Quadra
+  700, whose ROM self tests need real-machine speed; off for the Quadra 800.
+  `align=on` keeps the Mac's clock in real time; without it the clock, key
+  repeat and double-click time ran about three times too fast.
+- Mouse speed (`-global adb-mouse.speed=N`, percent of the host's motion,
+  50 by default): macOS and Mac OS both accelerate the pointer.
 - Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine
   card address under Apple's `08:00:07` prefix; port forwarding with slirp.
   With the LC 475's Ethernet card the same settings become

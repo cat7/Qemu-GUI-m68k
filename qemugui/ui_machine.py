@@ -18,7 +18,7 @@ from tkinter import ttk, filedialog, messagebox
 
 from . import model, paths, systems
 from .model import Machine, ScsiDrive, Floppy, Network, Share
-from .systems import ICOUNT_SHIFT, machine_labels, machine_by_label, machine_type
+from .systems import ICOUNT_OPTION, machine_labels, machine_by_label, machine_type
 from .ui_dialogs import show_validation, CreateDiskDialog, ToolTip, HD_SC_SETUP_NOTE
 
 KIND_LABELS = {"": "Empty", "disk": "Hard disk", "cdrom": "CD-ROM"}
@@ -34,14 +34,18 @@ GREY = "gray"
 
 EDITOR_WIDTH = 760
 
-ICOUNT_TIP = (f"Adds -icount shift={ICOUNT_SHIFT}: the emulated 68040 runs at a fixed speed "
-              "close to the real machine instead of as fast as the host allows. The Quadra "
+ICOUNT_TIP = (f"Adds -icount {ICOUNT_OPTION}: the emulated 68040 runs at a fixed speed "
+              "close to the real machine instead of as fast as the host allows, and the "
+              "Mac's clock keeps real time. The Quadra "
               "700 ROM's power-on self tests time the CPU and fail (no chime, or a sad Mac) "
               "when it is too fast, so it is needed there for now. It makes the Mac slower; "
               "leave it off on the Quadra 800.")
 EASC_TIP = ("The Quadra 800 has Apple's Enhanced ASC sound chip. Untick to emulate the "
             "original ASC instead, for software that only knows the older chip.")
 SWAP_TIP = "Swap the Option and Command keys, for a PC keyboard."
+MOUSE_TIP = ("How much of the host's mouse motion reaches the Mac. macOS and Mac OS both "
+             "accelerate the pointer, so 100 % feels too fast; lower it if double-clicks "
+             "are hard to hit. The Mac's Mouse control panel adds its own setting on top.")
 PRAM_TIP = ("The Mac's battery-backed settings: start-up disk, date and time format, "
             "sound, monitor depth. Kept in this file between runs; empty = forgotten "
             "every time.")
@@ -55,6 +59,17 @@ def browse_file(parent, var: tk.StringVar, filetypes, fallback: Path | str | Non
         return f
     return ""
 
+
+
+def _speed_label(v: int) -> str:
+    return f"{v} %" + (" (default)" if v == systems.DEFAULT_MOUSE_SPEED else "")
+
+
+def _speed_value(label: str, fallback: int) -> int:
+    try:
+        return int(label.split()[0])
+    except (IndexError, ValueError):
+        return fallback
 
 class FilePicker:
     """One control for one file: type a path into it, paste one into it, or
@@ -331,7 +346,7 @@ class MachineEditor(tk.Toplevel):
         self._heading(f, r, "Speed")
         r += 1
         self.icount_var = tk.BooleanVar(value=False)
-        cb = ttk.Checkbutton(f, text=f"Run at real-machine speed (-icount shift={ICOUNT_SHIFT})",
+        cb = ttk.Checkbutton(f, text=f"Run at real-machine speed (-icount {ICOUNT_OPTION})",
                              variable=self.icount_var)
         cb.grid(row=r, column=0, columnspan=3, sticky="w")
         ToolTip(cb, ICOUNT_TIP)
@@ -390,6 +405,14 @@ class MachineEditor(tk.Toplevel):
                                        variable=self.swap_var)
         self.swap_cb.grid(row=6, column=0, columnspan=3, sticky="w", pady=(4, 0))
         ToolTip(self.swap_cb, SWAP_TIP)
+        ml = ttk.Label(f, text="Mouse speed:")
+        ml.grid(row=7, column=0, sticky="w", pady=(10, 4))
+        ToolTip(ml, MOUSE_TIP)
+        self.mouse_var = tk.StringVar()
+        mcb = ttk.Combobox(f, textvariable=self.mouse_var, state="readonly", width=10,
+                           values=[_speed_label(v) for v in systems.MOUSE_SPEEDS])
+        mcb.grid(row=7, column=1, sticky="w", pady=(10, 4))
+        ToolTip(mcb, MOUSE_TIP)
 
     def _display_changed(self, _e=None):
         self.swap_cb.config(state="normal" if self.display_var.get() == "cocoa" else "disabled")
@@ -646,6 +669,7 @@ class MachineEditor(tk.Toplevel):
         self._set_screen(m.machine, m.screen)
         self.display_var.set(m.display)
         self.swap_var.set(m.swap_opt_cmd)
+        self.mouse_var.set(_speed_label(m.mouse_speed))
         self._display_changed()
         for sid, row in enumerate(self.scsi_rows):
             row.set(m.scsi_by_id(sid))
@@ -687,6 +711,7 @@ class MachineEditor(tk.Toplevel):
         m.screen = s.id if s else ""
         m.display = self.display_var.get()
         m.swap_opt_cmd = self.swap_var.get()
+        m.mouse_speed = _speed_value(self.mouse_var.get(), m.mouse_speed)
         m.scsi = [d for d in (row.get() for row in self.scsi_rows) if d]
         m.floppies = [row.get() for row in self.floppy_rows]
         m.pds = systems.pds_by_label(self.pds_var.get())

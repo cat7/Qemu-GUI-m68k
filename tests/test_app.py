@@ -341,6 +341,7 @@ class Windows(unittest.TestCase):
         m.swap_opt_cmd = True
         m.easc = False
         m.screen = "1152x870x8"
+        m.mouse_speed = 35
         e, _ = self.editor(m)
         got = e.collect()
         e.destroy()
