@@ -17,8 +17,12 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   and 900, 128 MB on the LC 475 (whose ROM sizes memory correctly only for
   the sizes offered).
 - Quadra 900: keyboard and mouse go through its emulated SWIM I/O
-  processor; its floppy drive does not work yet. LC 475: no Ethernet,
-  1 MB of video memory, keyboard, mouse and clock through Cuda.
+  processor; its floppy drive does not work yet. LC 475: no built-in
+  Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
+- PDS slot (LC 475, Machine tab): Empty or the Ethernet card
+  (`-device mac-pds-ethernet`), a SONIC card that Mac OS drives with its own
+  "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP
+  control panels.
 - PRAM (`-drive ...,if=mtd`): each machine's own 512-byte `pram.img`, made
   blank when the machine is first saved; "Reset PRAM" clears it. Both
   models keep their settings there between runs.
@@ -37,6 +41,8 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   ROM self tests need real-machine speed; off for the Quadra 800.
 - Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine
   card address under Apple's `08:00:07` prefix; port forwarding with slirp.
+  With the LC 475's Ethernet card the same settings become
+  `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`.
 - Sound: ASC through `-audiodev` (CoreAudio on a Mac); Enhanced ASC on the
   Quadra 800 can be turned off.
 - `-rtc base=localtime`. There is no boot device setting: a bootable floppy

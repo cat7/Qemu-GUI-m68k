@@ -171,7 +171,7 @@ class FloppyRow:
         self.picker.grid(row=row, column=1, sticky="ew", padx=2, pady=1)
         ro = ttk.Checkbutton(master, text="Read only", variable=self.readonly)
         ro.grid(row=row, column=2, sticky="w", padx=(6, 0))
-        self.widgets = [self.picker, ro]
+        self.widgets = [self.picker.entry, ro]
         ToolTip(ro, "The Mac may write to the disk while it runs, but every change is "
                     "thrown away when it stops (snapshot=on). Use it for install disks.")
 
@@ -294,6 +294,16 @@ class MachineEditor(tk.Toplevel):
         r += 1
         self.ram_hint = ttk.Label(f, text="", foreground=GREY)
         self.ram_hint.grid(row=r, column=1, columnspan=2, sticky="w")
+        r += 1
+        ttk.Label(f, text="PDS slot:").grid(row=r, column=0, sticky="w", pady=4)
+        self.pds_var = tk.StringVar(value=systems.PDS_EMPTY_LABEL)
+        self.pds_cb = ttk.Combobox(f, textvariable=self.pds_var, state="readonly", width=26,
+                                   values=[systems.PDS_EMPTY_LABEL])
+        self.pds_cb.grid(row=r, column=1, sticky="w", pady=4)
+        self.pds_cb.bind("<<ComboboxSelected>>", lambda _e: self._update_net_hint())
+        r += 1
+        self.pds_hint = ttk.Label(f, text="", foreground=GREY)
+        self.pds_hint.grid(row=r, column=1, columnspan=2, sticky="w")
         r += 1
         ttk.Label(f, text="ROM:").grid(row=r, column=0, sticky="w", pady=4)
         self.rom_var = tk.StringVar()
@@ -438,7 +448,11 @@ class MachineEditor(tk.Toplevel):
 
     def _build_net_audio(self):
         f = self._tab("Network & sound")
-        self._heading(f, 0, "Network")
+        hf = ttk.Frame(f)
+        hf.grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 4))
+        ttk.Label(hf, text="Network", font=("", 0, "bold")).grid(row=0, column=0, sticky="w")
+        self.net_hint = ttk.Label(hf, text="", foreground=GREY)
+        self.net_hint.grid(row=0, column=1, sticky="w", padx=8)
         ttk.Label(f, text="Connection:").grid(row=1, column=0, sticky="w")
         self.net_mode = tk.StringVar(value=model.network_mode_label("user"))
         self.net_mode_cb = ttk.Combobox(f, textvariable=self.net_mode, state="readonly", width=18,
@@ -576,6 +590,28 @@ class MachineEditor(tk.Toplevel):
         self.easc_cb.config(state="normal" if t.easc else "disabled")
         for row in self.floppy_rows:
             row.enable(t.floppy)
+        self.pds_cb.config(values=systems.pds_labels(machine_id),
+                           state="readonly" if t.pds_cards else "disabled")
+        self.pds_hint.config(text="Cards for the processor-direct slot" if t.pds_cards
+                             else f"The {t.label} has no PDS slot")
+        if systems.pds_by_label(self.pds_var.get()) not in t.pds_cards:
+            self.pds_var.set(systems.PDS_EMPTY_LABEL)
+        self._update_net_hint()
+
+    def _set_pds(self, card_id: str):
+        card = systems.pds_card(card_id)
+        self.pds_var.set(card.label if card else systems.PDS_EMPTY_LABEL)
+        self._update_net_hint()
+
+    def _update_net_hint(self):
+        mid = getattr(self, "shown_type", None) or self.machine_id
+        t = machine_type(mid)
+        if systems.has_nic(mid, systems.pds_by_label(self.pds_var.get())):
+            text = "" if t.onboard_nic else "Ethernet card in the PDS slot"
+        else:
+            text = f"The {t.label} has no Ethernet: put the Ethernet card in its PDS slot " \
+                   "(Machine tab)"
+        self.net_hint.config(text=text)
 
     def _type_chosen(self, _event=None):
         """Switching model carries over what fits (model.apply_machine_type)."""
@@ -589,6 +625,7 @@ class MachineEditor(tk.Toplevel):
         self.ram_var.set(str(cur.ram_mb))
         self._set_screen(cur.machine, cur.screen)
         self.icount_var.set(cur.icount)
+        self._set_pds(cur.pds)
 
     def _set_screen(self, machine_id: str, screen_id: str):
         s = systems.screen_by_id(machine_id, screen_id) or \
@@ -601,6 +638,7 @@ class MachineEditor(tk.Toplevel):
         self.type_var.set(m.type.label)
         self.shown_type = m.machine
         self._apply_type_widgets(m.machine)
+        self._set_pds(m.pds)
         self.ram_var.set(str(m.ram_mb))
         self.rom_var.set(m.rom)
         self.pram_var.set(m.pram)
@@ -651,6 +689,7 @@ class MachineEditor(tk.Toplevel):
         m.swap_opt_cmd = self.swap_var.get()
         m.scsi = [d for d in (row.get() for row in self.scsi_rows) if d]
         m.floppies = [row.get() for row in self.floppy_rows]
+        m.pds = systems.pds_by_label(self.pds_var.get())
         mode = model.network_mode_by_label(self.net_mode.get())
         ifname = self.ifname_var.get().strip() if mode in model.NETWORK_MODES_WITH_IFNAME else ""
         fwd = [model.HostFwd(p.get(), h.get().strip(), g.get().strip())

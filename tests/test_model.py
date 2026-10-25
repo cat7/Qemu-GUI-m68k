@@ -364,5 +364,34 @@ class NoOtherPathCanRemoveAFile(unittest.TestCase):
         self.assertEqual(offenders, [])
 
 
+
+class PdsSlot(unittest.TestCase):
+
+    def test_round_trip(self):
+        m = model.new_machine("A", "lc475")
+        m.pds = "ethernet"
+        self.assertEqual(Machine.from_json(m.to_json()).pds, "ethernet")
+        self.assertEqual(Machine.from_dict({"machine": "lc475"}).pds, "")
+
+    def test_switching_to_a_model_without_the_slot_empties_it(self):
+        m = model.new_machine("A", "lc475")
+        m.pds = "ethernet"
+        model.apply_machine_type(m, "q800")
+        self.assertEqual(m.pds, "")
+
+    def test_validation(self):
+        m = model.new_machine("A", "lc475")
+        m.network.mode = "user"
+        _e, warnings = model.validate(m, None, check_files=False)
+        self.assertTrue(any("PDS slot" in w for w in warnings))
+        m.pds = "ethernet"
+        errors, warnings = model.validate(m, None, check_files=False)
+        self.assertEqual(errors, [])
+        self.assertFalse(any("PDS slot" in w for w in warnings))
+        m2 = model.new_machine("B", "q800")
+        m2.pds = "ethernet"
+        errors, _w = model.validate(m2, None, check_files=False)
+        self.assertTrue(any("no slot" in e for e in errors))
+
 if __name__ == "__main__":
     unittest.main()

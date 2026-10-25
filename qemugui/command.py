@@ -63,6 +63,22 @@ def display_option(m: Machine) -> str:
     return m.display
 
 
+NETDEV_ID = "net0"
+
+
+def _backend(net) -> str:
+    """The network backend with its own options, shared by -nic and -netdev."""
+    if net.mode == "user":
+        fwd = "".join(f",hostfwd={r.proto}::{r.host_port}-:{r.guest_port}"
+                      for r in net.hostfwd if not r.empty)
+        return f"user{fwd}"
+    if net.mode in ("vmnet-bridged", "tap"):
+        return f"{net.mode},ifname={qopt(net.ifname)}"
+    if net.mode in ("vmnet-shared", "vmnet-host"):
+        return net.mode
+    raise ValueError(f"unknown network mode {net.mode!r}")
+
+
 def nic_option(net) -> str:
     """The -nic value. The onboard SONIC is only wired up through a -nic
     with model=dp83932."""
@@ -78,6 +94,27 @@ def nic_option(net) -> str:
     if net.mode in ("vmnet-shared", "vmnet-host"):
         return f"{net.mode},{tail}"
     raise ValueError(f"unknown network mode {net.mode!r}")
+
+
+def network_args(m: Machine) -> list[str]:
+    """-nic for the built-in Ethernet; a card in the PDS slot is a -device,
+    with a -netdev behind it when the network is on."""
+    card = systems.pds_card(m.pds)
+    if card is None or card.id not in m.type.pds_cards:
+        if m.type.onboard_nic:
+            return ["-nic", nic_option(m.network)]
+        return ["-nic", "none"]
+    args = []
+    if not m.type.onboard_nic:
+        args += ["-nic", "none"]
+    if card.nic and m.network.mode != "none":
+        args += ["-netdev", f"{_backend(m.network)},id={NETDEV_ID}",
+                 "-device", f"{card.device},netdev={NETDEV_ID},mac={m.network.mac}"]
+    elif card.nic:
+        args += ["-device", f"{card.device},mac={m.network.mac}"]
+    else:
+        args += ["-device", card.device]
+    return args
 
 
 def drive_format(stored: str, file: str, base: str) -> str:
@@ -144,7 +181,7 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
     argv += ["-g", m.screen]
     argv += ["-display", display_option(m)]
     argv += ["-audiodev", f"{audio},id={AUDIODEV_ID}"]
-    argv += ["-nic", nic_option(m.network)]
+    argv += network_args(m)
 
     for s in sorted(m.scsi, key=lambda x: x.id):
         if s.file:

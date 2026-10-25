@@ -264,6 +264,41 @@ class Network_(unittest.TestCase):
         self.assertEqual(self.nic(mode="user", hostfwd=[HostFwd("tcp", "8080", "80"), HostFwd()]),
                          "user,model=dp83932,mac=08:00:07:01:02:03,hostfwd=tcp::8080-:80")
 
+    def lc475(self, pds="", **kw) -> list[str]:
+        m = model.new_machine("A", "lc475")
+        m.pds = pds
+        m.network = Network(mac="08:00:07:01:02:03", **kw)
+        return argv_for(m)
+
+    def test_lc475_without_card_has_no_ethernet(self):
+        argv = self.lc475(mode="user")
+        self.assertEqual(option(argv, "-nic"), ["none"])
+        self.assertEqual(option(argv, "-netdev"), [])
+
+    def test_lc475_ethernet_card(self):
+        argv = self.lc475("ethernet", mode="user", hostfwd=[HostFwd("tcp", "8080", "80")])
+        self.assertEqual(option(argv, "-nic"), ["none"])
+        self.assertEqual(option(argv, "-netdev"), ["user,hostfwd=tcp::8080-:80,id=net0"])
+        self.assertIn("mac-pds-ethernet,netdev=net0,mac=08:00:07:01:02:03",
+                      option(argv, "-device"))
+
+    def test_lc475_ethernet_card_bridged(self):
+        argv = self.lc475("ethernet", mode="vmnet-bridged", ifname="en0")
+        self.assertEqual(option(argv, "-netdev"), ["vmnet-bridged,ifname=en0,id=net0"])
+
+    def test_lc475_ethernet_card_unplugged(self):
+        argv = self.lc475("ethernet", mode="none")
+        self.assertEqual(option(argv, "-netdev"), [])
+        self.assertIn("mac-pds-ethernet,mac=08:00:07:01:02:03", option(argv, "-device"))
+
+    def test_card_ignored_on_a_model_without_the_slot(self):
+        m = model.new_machine("A", "q800")
+        m.pds = "ethernet"
+        m.network = Network(mode="user", mac="08:00:07:01:02:03")
+        argv = argv_for(m)
+        self.assertEqual(option(argv, "-nic"), ["user,model=dp83932,mac=08:00:07:01:02:03"])
+        self.assertNotIn("mac-pds-ethernet", " ".join(argv))
+
     def test_vmnet_runs_under_sudo(self):
         m = model.new_machine("A", "q800")
         m.network.mode = "vmnet-shared"

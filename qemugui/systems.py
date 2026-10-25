@@ -127,6 +127,8 @@ class MachineType:
     icount: bool                 # -icount shift=ICOUNT_SHIFT on by default
     easc: bool                   # has the "easc" machine property
     floppy: bool = True          # QEMU emulates its floppy drives
+    onboard_nic: bool = True     # built-in SONIC Ethernet (-nic model=dp83932)
+    pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its processor-direct slot takes
 
     @property
     def screens(self) -> tuple[Screen, ...]:
@@ -147,8 +149,47 @@ MACHINES: dict[str, MachineType] = {
     # sizes the ROM's memory sizing gets right with QEMU's flat RAM
     "lc475": MachineType("lc475", "Macintosh LC 475", "LC475.rom", 32, 132,
                          (4, 8, 16, 32, 64, 128), "640x480x8",
-                         icount=False, easc=True),
+                         icount=False, easc=True, onboard_nic=False,
+                         pds_cards=("ethernet",)),
 }
+
+
+
+@dataclass(frozen=True)
+class PdsCard:
+    """A card for the processor-direct slot, plugged in with -device."""
+    id: str
+    label: str
+    device: str                  # the QEMU device name
+    nic: bool                    # takes the Network settings
+
+
+PDS_CARDS: dict[str, PdsCard] = {
+    "ethernet": PdsCard("ethernet", "Ethernet card (SONIC)", "mac-pds-ethernet", nic=True),
+}
+PDS_EMPTY_LABEL = "Empty"
+
+
+def pds_card(card_id: str | None) -> PdsCard | None:
+    return PDS_CARDS.get(card_id or "")
+
+
+def pds_labels(machine_id: str) -> list[str]:
+    return [PDS_EMPTY_LABEL] + [PDS_CARDS[c].label for c in machine_type(machine_id).pds_cards]
+
+
+def pds_by_label(label: str) -> str:
+    for c in PDS_CARDS.values():
+        if c.label == label:
+            return c.id
+    return ""
+
+
+def has_nic(machine_id: str, pds: str = "") -> bool:
+    """Whether the machine has an Ethernet port the Network settings drive."""
+    card = pds_card(pds)
+    return machine_type(machine_id).onboard_nic or bool(card and card.nic)
+
 
 DEFAULT_MACHINE = "q800"
 RAM_MIN = 4

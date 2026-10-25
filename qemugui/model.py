@@ -324,6 +324,7 @@ class Machine:
     audio: str = "default"
     easc: bool = True            # q800 only: Enhanced ASC (off = plain ASC)
     network: Network = field(default_factory=Network)
+    pds: str = ""                # card in the processor-direct slot, "" = empty
     scsi: list = field(default_factory=list)
     floppies: list = field(default_factory=lambda: [None] * FLOPPY_DRIVES)
     share: Share = field(default_factory=Share)
@@ -350,6 +351,7 @@ class Machine:
             "audio": self.audio,
             "easc": self.easc,
             "network": self.network.to_dict(),
+            "pds": self.pds,
             "scsi": [d.to_dict() for d in sorted(self.scsi, key=lambda s: s.id)],
             "floppies": [f.to_dict() if f else None for f in self.floppies],
             "share": self.share.to_dict(),
@@ -378,6 +380,7 @@ class Machine:
             audio=str(d.get("audio", "default")),
             easc=bool(d.get("easc", True)),
             network=Network.from_dict(d.get("network")),
+            pds=str(d.get("pds", "") or ""),
             scsi=scsi,
             floppies=floppies,
             share=Share.from_dict(d.get("share")),
@@ -446,6 +449,8 @@ def apply_machine_type(m: Machine, machine_id: str) -> None:
     if screen_by_id(new.id, m.screen) is None:
         m.screen = new.screen
     m.icount = new.icount
+    if m.pds not in new.pds_cards:
+        m.pds = ""
 
 
 def pram_path(m: Machine, machine_dir: str | Path) -> Path | None:
@@ -537,6 +542,11 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
         if net.platform is not None and net.platform != host:
             warnings.append("This network setting only works on "
                             f"{'a Mac' if net.platform == 'darwin' else 'Windows'}.")
+    if m.pds and m.pds not in t.pds_cards:
+        errors.append(f"The {t.label} has no slot for that card.")
+    elif net.mode != "none" and not systems.has_nic(m.machine, m.pds):
+        warnings.append(f"The {t.label} has no Ethernet unless the Ethernet card is "
+                        "in its PDS slot.")
     share = m.share
     if share.scope not in SHARE_SCOPES:
         errors.append(f"'{share.scope}' is not a sharing setting.")
