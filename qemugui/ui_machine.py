@@ -34,12 +34,13 @@ GREY = "gray"
 
 EDITOR_WIDTH = 760
 
-ICOUNT_TIP = (f"Adds -icount {ICOUNT_OPTION}: the emulated 68040 runs at a fixed speed "
+ICOUNT_TIP = (f"Adds -icount {ICOUNT_OPTION}: the emulated CPU runs at a fixed speed "
               "close to the real machine instead of as fast as the host allows, and the "
-              "Mac's clock keeps real time. The Quadra "
-              "700 ROM's power-on self tests time the CPU and fail (no chime, or a sad Mac) "
-              "when it is too fast, so it is needed there for now. It makes the Mac slower; "
-              "leave it off on the Quadra 800.")
+              "Mac's clock keeps real time. The power-on self tests of the Mac II, IIfx "
+              "and Quadra 700 and 900 time the CPU and fail (no chime, or a sad Mac) when "
+              "it is too fast, and System 7.5 on the Mac II and IIfx stops with a "
+              "divide-by-zero error, so it is needed there for now. It makes the Mac "
+              "slower; leave it off on the Quadra 800.")
 EASC_TIP = ("The Quadra 800 has Apple's Enhanced ASC sound chip. Untick to emulate the "
             "original ASC instead, for software that only knows the older chip.")
 SWAP_TIP = "Swap the Option and Command keys, for a PC keyboard."
@@ -648,9 +649,11 @@ class MachineEditor(tk.Toplevel):
         t = machine_type(mid)
         if systems.has_nic(mid, systems.pds_by_label(self.pds_var.get())):
             text = "" if t.onboard_nic else "Ethernet card in the PDS slot"
-        else:
+        elif t.pds_cards:
             text = f"The {t.label} has no Ethernet: put the Ethernet card in its PDS slot " \
                    "(Machine tab)"
+        else:
+            text = f"The {t.label} has no Ethernet"
         self.net_hint.config(text=text)
 
     def _type_chosen(self, _event=None):

@@ -61,7 +61,10 @@ MONITORS: tuple[Screen, ...] = (
     Screen(832, 624, 'Apple 16" Color'),
     Screen(1152, 870, 'Apple 21" Color'),
 )
-SCREENS: dict[str, tuple[Screen, ...]] = {mid: MONITORS for mid in ("q800", "q700", "q900", "lc475")}
+# The Mac II and IIfx have no built-in video: QEMU fits its own NuBus
+# video card in slot 9, which starts in any of these sizes.
+SCREENS: dict[str, tuple[Screen, ...]] = {
+    mid: MONITORS for mid in ("q800", "q700", "q900", "lc475", "macii", "maciifx")}
 
 # Older records named sizes that are no monitor: the screen they really got
 OLD_SCREENS = {"800x600": "640x480"}
@@ -105,6 +108,18 @@ MACHINES: dict[str, MachineType] = {
                          (4, 8, 16, 32), "640x480",
                          icount=False, easc=True, onboard_nic=False,
                          pds_cards=("ethernet",)),
+    # 1 MB SIMMs, as Apple shipped it. Its 800K floppy drive is not
+    # emulated yet; no Ethernet.
+    "macii": MachineType("macii", "Macintosh II", 8, 8,
+                         (1, 2, 4, 8), "640x480",
+                         icount=True, easc=False, floppy=False,
+                         onboard_nic=False),
+    # Two banks of 4-64 MB; its floppy drive sits behind an I/O processor
+    # that is not emulated yet; no Ethernet.
+    "maciifx": MachineType("maciifx", "Macintosh IIfx", 32, 128,
+                           (4, 8, 16, 20, 32, 64, 128), "640x480",
+                           icount=True, easc=False, floppy=False,
+                           onboard_nic=False),
 }
 
 
