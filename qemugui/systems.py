@@ -108,12 +108,11 @@ MACHINES: dict[str, MachineType] = {
                          (4, 8, 16, 32), "640x480",
                          icount=False, easc=True, onboard_nic=False,
                          pds_cards=("ethernet",)),
-    # 1 MB SIMMs, as Apple shipped it. Its 800K floppy drive is not
-    # emulated yet; no Ethernet.
+    # 1 MB SIMMs, as Apple shipped it; no Ethernet. 800K floppies, and
+    # 1.4 MB ones with the Mac IIx ROM (the FDHD upgrade).
     "macii": MachineType("macii", "Macintosh II", 8, 8,
                          (1, 2, 4, 8), "640x480",
-                         icount=True, easc=False, floppy=False,
-                         onboard_nic=False),
+                         icount=True, easc=False, onboard_nic=False),
     # Two banks of 4-64 MB; its floppy drive sits behind an I/O processor
     # that is not emulated yet; no Ethernet.
     "maciifx": MachineType("maciifx", "Macintosh IIfx", 32, 128,

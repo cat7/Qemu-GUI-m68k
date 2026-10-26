@@ -22,8 +22,9 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
 - Macintosh II and IIfx: no built-in video; QEMU puts its own NuBus video
   card in slot 9 (any of the listed screen sizes, 1 to 32 bits per pixel).
-  No Ethernet, and their floppy drives do not work yet. They need
-  real-machine speed. The Mac II takes the Mac II or Mac IIx ROM.
+  No Ethernet. They need real-machine speed. The Mac II takes the Mac II
+  ROM (800K floppies) or the Mac IIx ROM (800K and 1.4 MB floppies); the
+  IIfx's floppy drive does not work yet.
 - PDS slot (LC 475, Machine tab): Empty or the Ethernet card
   (`-device mac-pds-ethernet`), a SONIC card that Mac OS drives with its own
   "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP
