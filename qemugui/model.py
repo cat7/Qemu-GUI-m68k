@@ -26,7 +26,7 @@ from typing import Any
 
 from . import paths, systems
 from .systems import (MACHINES, MAC_PREFIX, RAM_MIN, machine_type, normalise_machine_id,
-                      screen_by_id)
+                      normalise_screen_id, screen_by_id)
 
 SCHEMA = 1
 NAME_RE = re.compile(r"^[A-Za-z0-9._ -]+$")
@@ -41,6 +41,11 @@ SCSI_SELF_LABEL = "Macintosh"
 
 def scsi_name(sid: int) -> str:
     return f"Device {sid}"
+
+
+def scsi_bus_name(bus: int) -> str:
+    """"Internal SCSI" or "External SCSI"."""
+    return systems.SCSI_BUSES[bus][0] if 0 <= bus < len(systems.SCSI_BUSES) else f"SCSI bus {bus}"
 
 
 FLOPPY_DRIVES = 2
@@ -130,16 +135,20 @@ class ScsiDrive:
     kind: str = "disk"           # disk | cdrom
     file: str = ""
     format: str = "raw"
+    bus: int = 0                 # 0 internal, 1 external (Quadra 900)
 
     def to_dict(self) -> dict:
-        return {"id": self.id, "kind": self.kind, "file": self.file, "format": self.format}
+        d = {"id": self.id, "kind": self.kind, "file": self.file, "format": self.format}
+        if self.bus:
+            d["bus"] = self.bus
+        return d
 
     @classmethod
     def from_dict(cls, d: Any) -> "ScsiDrive | None":
         if not isinstance(d, dict):
             return None
         return cls(int(d.get("id", 0)), str(d.get("kind", "disk")), str(d.get("file", "")),
-                   str(d.get("format", "raw")))
+                   str(d.get("format", "raw")), int(d.get("bus", 0) or 0))
 
 
 @dataclass
@@ -326,7 +335,7 @@ class Machine:
     ram_mb: int = 128
     rom: str = ""                # relative = next to the emulator
     pram: str = PRAM_NAME        # relative = in the machine's folder; "" = not kept
-    screen: str = "800x600x8"    # a systems.Screen id, -g
+    screen: str = "800x600"      # a systems.Screen id, -g
     display: str = "cocoa"
     swap_opt_cmd: bool = False   # cocoa only
     icount: bool = False         # -icount ICOUNT_OPTION
@@ -363,7 +372,7 @@ class Machine:
             "easc": self.easc,
             "network": self.network.to_dict(),
             "pds": self.pds,
-            "scsi": [d.to_dict() for d in sorted(self.scsi, key=lambda s: s.id)],
+            "scsi": [d.to_dict() for d in sorted(self.scsi, key=lambda s: (s.bus, s.id))],
             "floppies": [f.to_dict() if f else None for f in self.floppies],
             "share": self.share.to_dict(),
             "extra_args": self.extra_args,
@@ -384,7 +393,7 @@ class Machine:
             ram_mb=int(d.get("ram_mb", t.ram_mb)),
             rom=str(d.get("rom", t.rom) or ""),
             pram=str(d.get("pram", PRAM_NAME) or ""),
-            screen=str(d.get("screen") or t.screen),
+            screen=normalise_screen_id(mid, d.get("screen")),
             display=str(d.get("display") or default_display()),
             swap_opt_cmd=bool(d.get("swap_opt_cmd", False)),
             icount=bool(d.get("icount", t.icount)),
@@ -418,16 +427,16 @@ class Machine:
         return Machine.from_dict(self.to_dict())
 
     # ---- helpers ----
-    def scsi_by_id(self, sid: int) -> ScsiDrive | None:
+    def scsi_by_id(self, sid: int, bus: int = 0) -> ScsiDrive | None:
         for s in self.scsi:
-            if s.id == sid:
+            if s.id == sid and s.bus == bus:
                 return s
         return None
 
-    def first_free_scsi(self, prefer: int = 0) -> int | None:
+    def first_free_scsi(self, prefer: int = 0, bus: int = 0) -> int | None:
         order = [prefer] + [i for i in SCSI_IDS if i != prefer]
         for sid in order:
-            if self.scsi_by_id(sid) is None:
+            if self.scsi_by_id(sid, bus) is None:
                 return sid
         return None
 
@@ -463,6 +472,14 @@ def apply_machine_type(m: Machine, machine_id: str) -> None:
     m.icount = new.icount
     if m.pds not in new.pds_cards:
         m.pds = ""
+    # A model with one bus takes drives from the external bus at free IDs
+    moved = [s for s in m.scsi if s.bus >= new.scsi_buses]
+    m.scsi = [s for s in m.scsi if s.bus < new.scsi_buses]
+    for s in sorted(moved, key=lambda x: x.id):
+        free = m.first_free_scsi(s.id)
+        if free is not None:
+            s.bus, s.id = 0, free
+            m.scsi.append(s)
 
 
 def pram_path(m: Machine, machine_dir: str | Path) -> Path | None:
@@ -574,9 +591,11 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
 
     seen_ids = set()
     for s in m.scsi:
-        if s.id in seen_ids:
-            errors.append(f"Two SCSI drives are both set to device {s.id}.")
-        seen_ids.add(s.id)
+        if (s.bus, s.id) in seen_ids:
+            errors.append(f"Two {scsi_bus_name(s.bus)} drives are both set to device {s.id}.")
+        seen_ids.add((s.bus, s.id))
+        if not 0 <= s.bus < t.scsi_buses:
+            errors.append(f"The {t.label} has no {scsi_bus_name(s.bus)} bus.")
         if s.id == SCSI_SELF_ID:
             errors.append(f"SCSI device {SCSI_SELF_ID} is the Macintosh.")
         elif s.id not in SCSI_IDS:
@@ -622,7 +641,7 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
 
 def _image_files(m: Machine):
     for s in m.scsi:
-        yield f"SCSI {scsi_name(s.id)}", s.file
+        yield f"{scsi_bus_name(s.bus) if m.type.scsi_buses > 1 else 'SCSI'} {scsi_name(s.id)}", s.file
     for i, fd in enumerate(m.floppies):
         if fd:
             yield floppy_name(i), fd.file

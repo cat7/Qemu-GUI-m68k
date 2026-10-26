@@ -92,10 +92,10 @@ class UserLaunchers(unittest.TestCase):
         self.assertEqual(sorted(got), sorted(want))
 
     def test_q800(self):
-        self.check("q800.json", USER_Q800, "q800", "800x600x8")
+        self.check("q800.json", USER_Q800, "q800", "800x600")
 
     def test_q700(self):
-        self.check("q700.json", USER_Q700, "q700", "1152x870x1")
+        self.check("q700.json", USER_Q700, "q700", "1152x870")   # the old depth is dropped
 
     def test_binary_is_absolute_and_first(self):
         self.assertEqual(argv_for(load_fixture("q800.json"))[0], f"{QD}/qemu-system-m68k")
@@ -130,7 +130,7 @@ class Machines(unittest.TestCase):
         self.assertEqual(option(argv, "-M"), ["q800,audiodev=snd"])
         self.assertEqual(option(argv, "-m"), ["128"])
         self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra800.rom"])
-        self.assertEqual(option(argv, "-g"), ["800x600x8"])
+        self.assertEqual(option(argv, "-g"), ["800x600"])
         self.assertNotIn("-icount", argv)
         self.assertIn("file=/M/A/pram.img,format=raw,if=mtd", argv)
         self.assertEqual(option(argv, "-rtc"), ["base=localtime"])
@@ -143,7 +143,7 @@ class Machines(unittest.TestCase):
         self.assertEqual(option(argv, "-icount"), ["shift=6,align=on"])
         self.assertEqual(option(argv, "-m"), ["64"])
         self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra700.rom"])
-        self.assertEqual(option(argv, "-g"), ["832x624x8"])
+        self.assertEqual(option(argv, "-g"), ["832x624"])
 
     def test_icount_is_a_choice_on_either(self):
         m = model.new_machine("B", "q700")
@@ -181,7 +181,7 @@ class Machines(unittest.TestCase):
             for s in screens:
                 m = model.new_machine("A", mid)
                 m.screen = s.id
-                self.assertEqual(option(argv_for(m), "-g"), [f"{s.width}x{s.height}x{s.depth}"])
+                self.assertEqual(option(argv_for(m), "-g"), [f"{s.width}x{s.height}"])
                 self.assertEqual(model.validate(m, None, check_files=False)[0], [])
 
 
@@ -197,6 +197,33 @@ class Drives(unittest.TestCase):
         self.assertIn("file=/hd/8.1.img,media=disk,format=raw,if=none,id=disk0", drives)
         self.assertIn("file=/iso/7.5.3.iso,media=cdrom,format=raw,readonly=on,if=none,id=cd3",
                       drives)
+
+    def test_the_quadra_900s_external_bus(self):
+        """The same ID on both buses; the external one names its bus."""
+        m = model.new_machine("A", "q900")
+        m.scsi = [ScsiDrive(3, "cdrom", "/iso/8.1.iso", bus=1), ScsiDrive(0, "disk", "/hd/a.img"),
+                  ScsiDrive(0, "disk", "/hd/b.img", bus=1)]
+        self.assertEqual(model.validate(m, None, check_files=False)[0], [])
+        argv = argv_for(m)
+        self.assertEqual(option(argv, "-device"), [
+            "scsi-hd,scsi-id=0,drive=disk0",
+            "scsi-hd,bus=scsi.0,scsi-id=0,drive=xdisk0",
+            "scsi-cd,bus=scsi.0,scsi-id=3,drive=xcd3"])
+        drives = option(argv, "-drive")
+        self.assertIn("file=/hd/b.img,media=disk,format=raw,if=none,id=xdisk0", drives)
+        self.assertIn("file=/iso/8.1.iso,media=cdrom,format=raw,readonly=on,if=none,id=xcd3",
+                      drives)
+
+    def test_no_external_bus_on_one_bus_models(self):
+        m = model.new_machine("A", "q700")
+        m.scsi = [ScsiDrive(3, "cdrom", "/iso/8.1.iso", bus=1)]
+        self.assertTrue(model.validate(m, None, check_files=False)[0])
+        self.assertEqual(option(argv_for(m), "-device"), [])
+
+    def test_two_drives_on_one_id_of_one_bus(self):
+        m = model.new_machine("A", "q900")
+        m.scsi = [ScsiDrive(3, "cdrom", "/a.iso", bus=1), ScsiDrive(3, "disk", "/b.img", bus=1)]
+        self.assertTrue(model.validate(m, None, check_files=False)[0])
 
     def test_relative_image_resolves_in_the_machine_folder(self):
         m = model.new_machine("A", "q800")

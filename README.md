@@ -10,7 +10,7 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 ## What it sets up
 
 - Machine model, from the table in `qemugui/systems.py` (one `MachineType`
-  line per model, one `Screen` line per display mode).
+  line per model, one `Screen` line per monitor).
 - ROM (`-bios`): starts as `Quadra800.rom`, `Quadra700.rom`, `Quadra900.rom`
   (the same ROM as the 700) or `LC475.rom`, looked for next to the emulator.
 - Memory (`-m`): up to 1024 MB on the Quadra 800, 256 MB on the Quadra 700
@@ -27,16 +27,21 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   blank when the machine is first saved; "Reset PRAM" clears it. Both
   models keep their settings there between runs.
 - SCSI IDs 0 to 6: hard disk (`scsi-hd`) or CD-ROM (`scsi-cd`, read only).
+  The Quadra 900 also has its external SCSI bus, IDs 0 to 6 again
+  (`bus=scsi.0`); its internal bus is the one drives go on without `bus=`.
+  Two bootable system CDs at once can leave the Mac at the flashing "?"
+  (the older CD's driver takes over both drives); this happens on one bus
+  too.
   New blank disks are made with `qemu-img`. Apple HD SC Setup makes only a
   20 MB partition on them; use Drive Setup from the 7.6 or 8.0 Disk Tools
   floppy for the full size.
 - Two floppy drives, 1.44 MB raw images (`if=floppy`); "Read only" throws
   changes away (`snapshot=on`). 400K/800K (GCR) disks do not work yet.
-- Screen (`-g WxHxD`) from the model's monitor list; cocoa (with optional
-  Option/Command swap) or sdl. On the Quadra 700 the size picks the Apple
-  monitor (12" RGB, 13" RGB/VGA, 15" Portrait, 16" Color, 21" Color) and the
-  depth is only where the Mac starts; it chooses its own depth in the
-  Monitors control panel and keeps it in PRAM. 24 means "Millions".
+- Screen (`-g WxH`): one line per monitor, at the size it starts in;
+  cocoa (with optional Option/Command swap) or sdl. On the Quadra 700 and
+  900 the size picks the Apple monitor (12" RGB, 13" RGB/VGA, 15" Portrait,
+  16" Color, 21" Color). Resolution and colour depth are chosen in Mac OS
+  (Monitors control panel), which keeps them in PRAM.
 - Speed limit (`-icount shift=6,align=on`): on by default for the Quadra
   700, whose ROM self tests need real-machine speed; off for the Quadra 800.
   `align=on` keeps the Mac's clock in real time; without it the clock, key

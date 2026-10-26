@@ -340,7 +340,7 @@ class Windows(unittest.TestCase):
         m.floppies = [model.Floppy("/f.img", True), None]
         m.swap_opt_cmd = True
         m.easc = False
-        m.screen = "1152x870x8"
+        m.screen = "1152x870"
         m.mouse_speed = 35
         e, _ = self.editor(m)
         got = e.collect()
@@ -353,10 +353,29 @@ class Windows(unittest.TestCase):
         e._type_chosen()
         got = e.collect()
         self.assertEqual((got.machine, got.rom, got.ram_mb, got.screen, got.icount),
-                         ("q700", "Quadra700.rom", 64, "832x624x8", True))
+                         ("q700", "Quadra700.rom", 64, "832x624", True))
         self.assertEqual(list(e.screen_cb.cget("values")),
                          [s.label for s in model.machine_type("q700").screens])
         self.assertTrue(e.easc_cb.instate(["disabled"]))
+        e.destroy()
+
+    def test_the_quadra_900_shows_its_external_bus(self):
+        m = model.new_machine("Nine", "q900")
+        m.scsi = [model.ScsiDrive(0, "disk", "/a.img"),
+                  model.ScsiDrive(3, "cdrom", "/b.iso", bus=1)]
+        e, _ = self.editor(m)
+        e.update_idletasks()
+        self.assertTrue(e.ext_scsi.winfo_manager())
+        self.assertEqual(e.scsi_heading.cget("text"), "Internal SCSI")
+        self.assertEqual(e.collect().to_dict(), m.to_dict())
+        # a model with one bus hides it and takes its drives at free IDs
+        e.type_var.set("Macintosh Quadra 700")
+        e._type_chosen()
+        e.update_idletasks()
+        self.assertFalse(e.ext_scsi.winfo_manager())
+        self.assertEqual(e.scsi_heading.cget("text"), "SCSI")
+        self.assertEqual(e.collect().scsi, [model.ScsiDrive(0, "disk", "/a.img"),
+                                            model.ScsiDrive(3, "cdrom", "/b.iso")])
         e.destroy()
 
     def test_choosing_empty_removes_the_drive(self):

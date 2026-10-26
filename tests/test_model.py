@@ -52,19 +52,46 @@ class TheModelTable(unittest.TestCase):
         self.assertFalse(systems.MACHINES["q800"].icount)
 
     def test_screen_labels(self):
-        s = systems.Screen(832, 624, 8, 'Apple 16" Color')
-        self.assertEqual(s.id, "832x624x8")
-        self.assertEqual(s.label, 'Apple 16" Color — 832 × 624, 256 colours')
+        s = systems.Screen(832, 624, 'Apple 16" Color')
+        self.assertEqual(s.id, "832x624")
+        self.assertEqual(s.label, 'Apple 16" Color — 832 × 624')
+        self.assertEqual(systems.Screen(800, 600).label, "800 × 600")
 
     def test_the_q700_monitors(self):
-        sizes = sorted({(s.width, s.height) for s in systems.SCREENS["q700"]})
-        self.assertEqual(sizes, [(512, 384), (640, 480), (640, 870), (832, 624), (1152, 870)])
-        self.assertEqual(len(systems.SCREENS["q700"]), 23)
-        self.assertIsNone(systems.screen_by_id("q700", "800x600x8"))
-        self.assertIsNone(systems.screen_by_id("q700", "640x870x24"))   # greyscale
-        self.assertIsNone(systems.screen_by_id("q700", "1152x870x24"))
+        """One line per monitor, at the size it starts in."""
+        self.assertEqual([s.id for s in systems.SCREENS["q700"]],
+                         ["512x384", "640x480", "640x870", "832x624", "1152x870"])
+        self.assertIsNone(systems.screen_by_id("q700", "800x600"))
         self.assertTrue(all(s.monitor for s in systems.SCREENS["q700"]))
-        self.assertEqual(systems.Screen(800, 600, 24).label, "800 × 600, millions")
+        self.assertIs(systems.SCREENS["q900"], systems.SCREENS["q700"])
+
+    def test_old_screen_ids_keep_their_size(self):
+        self.assertEqual(systems.normalise_screen_id("q700", "832x624x24"), "832x624")
+        self.assertEqual(systems.normalise_screen_id("q700", "640x870x1"), "640x870")
+        self.assertEqual(systems.normalise_screen_id("q700", "800x600x8"), "832x624")
+        self.assertEqual(systems.normalise_screen_id("q800", None), "800x600")
+        d = model.new_machine("A", "q900").to_dict()
+        d["screen"] = "1152x870x4"
+        self.assertEqual(Machine.from_dict(d).screen, "1152x870")
+
+
+class ExternalScsi(unittest.TestCase):
+
+    def test_the_bus_round_trips_and_is_left_out_when_internal(self):
+        m = model.new_machine("A", "q900")
+        m.scsi = [ScsiDrive(0, "disk", "/a.img"), ScsiDrive(3, "cdrom", "/b.iso", bus=1)]
+        d = m.to_dict()
+        self.assertNotIn("bus", d["scsi"][0])
+        self.assertEqual(d["scsi"][1]["bus"], 1)
+        self.assertEqual(Machine.from_dict(d).scsi, m.scsi)
+
+    def test_a_one_bus_model_takes_external_drives_at_free_ids(self):
+        m = model.new_machine("A", "q900")
+        m.scsi = [ScsiDrive(0, "disk", "/a.img"), ScsiDrive(0, "disk", "/b.img", bus=1),
+                  ScsiDrive(3, "cdrom", "/c.iso", bus=1)]
+        model.apply_machine_type(m, "q700")
+        self.assertEqual(sorted((s.bus, s.id, s.file) for s in m.scsi),
+                         [(0, 0, "/a.img"), (0, 1, "/b.img"), (0, 3, "/c.iso")])
 
 
 class Record(unittest.TestCase):
@@ -72,7 +99,7 @@ class Record(unittest.TestCase):
     def test_every_part_survives_a_round_trip(self):
         m = model.new_machine("Everything", "q700")
         m.ram_mb = 32
-        m.screen = "640x480x1"
+        m.screen = "640x480"
         m.display = "sdl"
         m.swap_opt_cmd = True
         m.icount = False
@@ -95,7 +122,7 @@ class Record(unittest.TestCase):
     def test_a_bare_record_takes_its_models_defaults(self):
         m = Machine.from_dict({"name": "x", "machine": "q700"})
         self.assertEqual((m.ram_mb, m.rom, m.screen, m.icount, m.pram),
-                         (64, "Quadra700.rom", "832x624x8", True, "pram.img"))
+                         (64, "Quadra700.rom", "832x624", True, "pram.img"))
         self.assertRegex(m.network.mac, r"^08:00:07:")
         self.assertEqual(m.floppies, [None, None])
 
@@ -117,13 +144,13 @@ class SwitchingModel(unittest.TestCase):
         m = model.new_machine("x", "q800")
         model.apply_machine_type(m, "q700")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.screen, m.icount),
-                         ("q700", "Quadra700.rom", 64, "832x624x8", True))
+                         ("q700", "Quadra700.rom", 64, "832x624", True))
         model.apply_machine_type(m, "q800")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.icount), ("q800", "Quadra800.rom", 128, False))
-        self.assertEqual(m.screen, "800x600x8")      # no 832x624 there: its default
-        m.screen = "1152x870x8"
+        self.assertEqual(m.screen, "800x600")      # no 832x624 there: its default
+        m.screen = "1152x870"
         model.apply_machine_type(m, "q700")
-        self.assertEqual(m.screen, "1152x870x8")     # the q700 offers it too: kept
+        self.assertEqual(m.screen, "1152x870")     # the q700 offers it too: kept
 
     def test_own_choices_are_kept_where_they_fit(self):
         m = model.new_machine("x", "q800")
@@ -159,7 +186,7 @@ class Checks(unittest.TestCase):
 
     def test_a_screen_the_model_cannot_show(self):
         m = model.new_machine("x", "q700")
-        m.screen = "800x600x8"
+        m.screen = "800x600"
         self.assertTrue(self.errors(m))
 
     def test_scsi_7_is_the_mac(self):

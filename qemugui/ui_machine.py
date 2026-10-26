@@ -106,8 +106,9 @@ class FilePicker:
 class DriveRow:
     """One SCSI ID: what is in it and which file it is."""
 
-    def __init__(self, master, row: int, sid: int, fallback=None):
+    def __init__(self, master, row: int, sid: int, fallback=None, bus: int = 0):
         self.sid = sid
+        self.bus = bus
         self.kind = tk.StringVar(value=KIND_LABELS[""])
         self.file = tk.StringVar()
         self.format = tk.StringVar(value="raw")
@@ -162,7 +163,8 @@ class DriveRow:
         if not k or not self.file.get().strip():
             return None
         return ScsiDrive(id=self.sid, kind=k, file=self.file.get().strip(),
-                         format=self.format.get() or "raw" if k == "disk" else "raw")
+                         format=self.format.get() or "raw" if k == "disk" else "raw",
+                         bus=self.bus)
 
 
 def _set_state(widget, state: str):
@@ -283,8 +285,9 @@ class MachineEditor(tk.Toplevel):
 
     @staticmethod
     def _heading(f, row: int, text: str, pady=(0, 4)):
-        ttk.Label(f, text=text, font=("", 0, "bold")).grid(
-            row=row, column=0, columnspan=4, sticky="w", pady=pady)
+        label = ttk.Label(f, text=text, font=("", 0, "bold"))
+        label.grid(row=row, column=0, columnspan=4, sticky="w", pady=pady)
+        return label
 
     def _build_machine(self):
         f = self._tab("Machine")
@@ -390,7 +393,8 @@ class MachineEditor(tk.Toplevel):
         self.screen_var = tk.StringVar()
         self.screen_cb = ttk.Combobox(f, textvariable=self.screen_var, state="readonly", width=34)
         self.screen_cb.grid(row=1, column=1, sticky="w", pady=4)
-        ttk.Label(f, text="The size is the monitor; the depth is where Mac OS starts (Monitors control panel)",
+        ttk.Label(f, text="Starts at this size. Change resolution and colours in Mac OS "
+                          "(Monitors control panel)",
                   foreground=GREY).grid(row=2, column=1, sticky="w")
         ttk.Separator(f).grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
         self._heading(f, 4, "Display type")
@@ -414,6 +418,22 @@ class MachineEditor(tk.Toplevel):
         mcb.grid(row=7, column=1, sticky="w", pady=(10, 4))
         ToolTip(mcb, MOUSE_TIP)
 
+    def _scsi_table(self, parent, row: int, bus: int) -> list:
+        """IDs 0-6 of one SCSI bus, and 7, the Mac itself."""
+        scsi = ttk.Frame(parent)
+        scsi.grid(row=row, column=0, sticky="ew")
+        scsi.columnconfigure(2, weight=1)
+        for c, h in enumerate(("ID", "", "Image", "Format")):
+            ttk.Label(scsi, text=h, foreground=GREY).grid(row=0, column=c, sticky="w", padx=4)
+        rows = [DriveRow(scsi, sid + 1, sid, fallback=self.machine_folder, bus=bus)
+                for sid in model.SCSI_IDS]
+        self_row = model.SCSI_SELF_ID + 1
+        ttk.Label(scsi, text=model.scsi_name(model.SCSI_SELF_ID)).grid(
+            row=self_row, column=0, sticky="w", padx=(0, 4), pady=1)
+        ttk.Label(scsi, text=model.SCSI_SELF_LABEL, foreground=GREY).grid(
+            row=self_row, column=1, columnspan=3, sticky="w", padx=2, pady=1)
+        return rows
+
     def _display_changed(self, _e=None):
         self.swap_cb.config(state="normal" if self.display_var.get() == "cocoa" else "disabled")
 
@@ -421,20 +441,16 @@ class MachineEditor(tk.Toplevel):
         f = self._tab("Drives")
         f.columnconfigure(0, weight=1)
         r = 0
-        self._heading(f, r, "SCSI")
+        self.scsi_heading = self._heading(f, r, "SCSI")
         r += 1
-        scsi = ttk.Frame(f)
-        scsi.grid(row=r, column=0, sticky="ew")
-        scsi.columnconfigure(2, weight=1)
-        for c, h in enumerate(("ID", "", "Image", "Format")):
-            ttk.Label(scsi, text=h, foreground=GREY).grid(row=0, column=c, sticky="w", padx=4)
-        self.scsi_rows = [DriveRow(scsi, sid + 1, sid, fallback=self.machine_folder)
-                          for sid in model.SCSI_IDS]
-        self_row = model.SCSI_SELF_ID + 1
-        ttk.Label(scsi, text=model.scsi_name(model.SCSI_SELF_ID)).grid(
-            row=self_row, column=0, sticky="w", padx=(0, 4), pady=1)
-        ttk.Label(scsi, text=model.SCSI_SELF_LABEL, foreground=GREY).grid(
-            row=self_row, column=1, columnspan=3, sticky="w", padx=2, pady=1)
+        self.scsi_rows = self._scsi_table(f, r, 0)
+        r += 1
+        # The second bus (Quadra 900): shown only for a model that has one
+        self.ext_scsi = ttk.Frame(f)
+        self.ext_scsi.grid(row=r, column=0, sticky="ew", pady=(8, 0))
+        self.ext_scsi.columnconfigure(0, weight=1)
+        self._heading(self.ext_scsi, 0, model.scsi_bus_name(1))
+        self.ext_rows = self._scsi_table(self.ext_scsi, 1, 1)
         r += 1
         ttk.Label(f, text="CD-ROMs are read only. Usual places: hard disk 0, CD-ROM 3.",
                   foreground=GREY).grid(row=r, column=0, sticky="w", padx=4, pady=(6, 0))
@@ -613,6 +629,12 @@ class MachineEditor(tk.Toplevel):
         self.easc_cb.config(state="normal" if t.easc else "disabled")
         for row in self.floppy_rows:
             row.enable(t.floppy)
+        if t.scsi_buses > 1:
+            self.ext_scsi.grid()
+            self.scsi_heading.config(text=model.scsi_bus_name(0))
+        else:
+            self.ext_scsi.grid_remove()
+            self.scsi_heading.config(text="SCSI")
         self.pds_cb.config(values=systems.pds_labels(machine_id),
                            state="readonly" if t.pds_cards else "disabled")
         self.pds_hint.config(text="Cards for the processor-direct slot" if t.pds_cards
@@ -649,6 +671,13 @@ class MachineEditor(tk.Toplevel):
         self._set_screen(cur.machine, cur.screen)
         self.icount_var.set(cur.icount)
         self._set_pds(cur.pds)
+        self._set_scsi(cur)
+
+    def _set_scsi(self, m: Machine):
+        for sid, row in enumerate(self.scsi_rows):
+            row.set(m.scsi_by_id(sid))
+        for sid, row in enumerate(self.ext_rows):
+            row.set(m.scsi_by_id(sid, 1))
 
     def _set_screen(self, machine_id: str, screen_id: str):
         s = systems.screen_by_id(machine_id, screen_id) or \
@@ -671,8 +700,7 @@ class MachineEditor(tk.Toplevel):
         self.swap_var.set(m.swap_opt_cmd)
         self.mouse_var.set(_speed_label(m.mouse_speed))
         self._display_changed()
-        for sid, row in enumerate(self.scsi_rows):
-            row.set(m.scsi_by_id(sid))
+        self._set_scsi(m)
         for i, row in enumerate(self.floppy_rows):
             row.set(m.floppies[i] if i < len(m.floppies) else None)
         self.net_mode_cb.config(
@@ -712,7 +740,9 @@ class MachineEditor(tk.Toplevel):
         m.display = self.display_var.get()
         m.swap_opt_cmd = self.swap_var.get()
         m.mouse_speed = _speed_value(self.mouse_var.get(), m.mouse_speed)
-        m.scsi = [d for d in (row.get() for row in self.scsi_rows) if d]
+        shown = machine_type(getattr(self, "shown_type", None) or m.machine)
+        rows = self.scsi_rows + (self.ext_rows if shown.scsi_buses > 1 else [])
+        m.scsi = [d for d in (row.get() for row in rows) if d]
         m.floppies = [row.get() for row in self.floppy_rows]
         m.pds = systems.pds_by_label(self.pds_var.get())
         mode = model.network_mode_by_label(self.net_mode.get())

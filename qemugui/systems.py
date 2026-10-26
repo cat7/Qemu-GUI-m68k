@@ -31,35 +31,29 @@ DEFAULT_MOUSE_SPEED = 50
 # Apple's own Ethernet prefix, which the Mac OS network drivers expect.
 MAC_PREFIX = "08:00:07"
 
-DEPTH_NAMES = {1: "black & white", 2: "4 colours", 4: "16 colours", 8: "256 colours",
-               16: "thousands", 24: "millions"}
-GREY_NAMES = {1: "black & white", 2: "4 greys", 4: "16 greys", 8: "256 greys"}
-
-
 @dataclass(frozen=True)
 class Screen:
-    """One display mode, as -g WIDTHxHEIGHTxDEPTH.
+    """One monitor, as -g WIDTHxHEIGHT.
 
-    On the Quadra 700 the size picks the monitor (the emulated DAFB reports
-    that monitor's sense code); the depth is only where the Mac starts, and
-    it can switch in the Monitors control panel. 24 means "Millions"."""
+    On the Quadra 700 and 900 the size picks the monitor (the emulated DAFB
+    reports that monitor's sense code). Only the size is given: Mac OS starts
+    in the depth its PRAM remembers (256 colours on a fresh one), and colour
+    depth and resolution are changed in the Monitors control panel."""
     width: int
     height: int
-    depth: int
     monitor: str = ""            # the Apple monitor this size is, shown first
 
     @property
     def id(self) -> str:
-        return f"{self.width}x{self.height}x{self.depth}"
+        return f"{self.width}x{self.height}"
 
     @property
     def label(self) -> str:
-        names = GREY_NAMES if "greyscale" in self.monitor else DEPTH_NAMES
-        text = f"{self.width} × {self.height}, {names.get(self.depth, f'{self.depth}-bit')}"
+        text = f"{self.width} × {self.height}"
         return f"{self.monitor} — {text}" if self.monitor else text
 
 
-# The monitors each model's built-in video can drive. One line per mode.
+# The monitors each model's built-in video can drive, at the size each starts in.
 RGB12 = 'Apple 12" RGB'
 RGB13 = 'Apple 13" RGB / VGA'
 PORTRAIT15 = 'Apple 15" Portrait (greyscale)'
@@ -68,56 +62,21 @@ COLOR21 = 'Apple 21" Color'
 
 SCREENS: dict[str, tuple[Screen, ...]] = {
     "q800": (
-        Screen(640, 480, 1),
-        Screen(640, 480, 2),
-        Screen(640, 480, 4),
-        Screen(640, 480, 8),
-        Screen(640, 480, 24),
-        Screen(800, 600, 1),
-        Screen(800, 600, 2),
-        Screen(800, 600, 4),
-        Screen(800, 600, 8),
-        Screen(800, 600, 24),
-        Screen(1152, 870, 1),
-        Screen(1152, 870, 2),
-        Screen(1152, 870, 4),
-        Screen(1152, 870, 8),
+        Screen(640, 480),
+        Screen(800, 600),
+        Screen(1152, 870),
     ),
     "q700": (
-        Screen(512, 384, 1, RGB12),
-        Screen(512, 384, 2, RGB12),
-        Screen(512, 384, 4, RGB12),
-        Screen(512, 384, 8, RGB12),
-        Screen(512, 384, 24, RGB12),
-        Screen(640, 480, 1, RGB13),
-        Screen(640, 480, 2, RGB13),
-        Screen(640, 480, 4, RGB13),
-        Screen(640, 480, 8, RGB13),
-        Screen(640, 480, 24, RGB13),
-        Screen(640, 870, 1, PORTRAIT15),
-        Screen(640, 870, 2, PORTRAIT15),
-        Screen(640, 870, 4, PORTRAIT15),
-        Screen(640, 870, 8, PORTRAIT15),
-        Screen(832, 624, 1, COLOR16),
-        Screen(832, 624, 2, COLOR16),
-        Screen(832, 624, 4, COLOR16),
-        Screen(832, 624, 8, COLOR16),
-        Screen(832, 624, 24, COLOR16),
-        Screen(1152, 870, 1, COLOR21),
-        Screen(1152, 870, 2, COLOR21),
-        Screen(1152, 870, 4, COLOR21),
-        Screen(1152, 870, 8, COLOR21),
+        Screen(512, 384, RGB12),
+        Screen(640, 480, RGB13),
+        Screen(640, 870, PORTRAIT15),
+        Screen(832, 624, COLOR16),
+        Screen(1152, 870, COLOR21),
     ),
     # The LC 475 has 1 MB of VRAM at most
     "lc475": (
-        Screen(640, 480, 1),
-        Screen(640, 480, 2),
-        Screen(640, 480, 4),
-        Screen(640, 480, 8),
-        Screen(800, 600, 1),
-        Screen(800, 600, 2),
-        Screen(800, 600, 4),
-        Screen(800, 600, 8),
+        Screen(640, 480),
+        Screen(800, 600),
     ),
 }
 # The Quadra 900 has the Quadra 700's built-in video
@@ -138,6 +97,7 @@ class MachineType:
     floppy: bool = True          # QEMU emulates its floppy drives
     onboard_nic: bool = True     # built-in SONIC Ethernet (-nic model=dp83932)
     pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its processor-direct slot takes
+    scsi_buses: int = 1          # 2: also an external SCSI bus (SCSI_BUSES)
 
     @property
     def screens(self) -> tuple[Screen, ...]:
@@ -146,18 +106,19 @@ class MachineType:
 
 MACHINES: dict[str, MachineType] = {
     "q800": MachineType("q800", "Macintosh Quadra 800", "Quadra800.rom", 128, 1024,
-                        (8, 16, 32, 64, 128, 256, 512, 1024), "800x600x8",
+                        (8, 16, 32, 64, 128, 256, 512, 1024), "800x600",
                         icount=False, easc=True),
     "q700": MachineType("q700", "Macintosh Quadra 700", "Quadra700.rom", 64, 256,
-                        (8, 16, 20, 32, 64, 128, 256), "832x624x8",
+                        (8, 16, 20, 32, 64, 128, 256), "832x624",
                         icount=True, easc=False),
     # its floppy drive sits behind an I/O processor that is not emulated yet
     "q900": MachineType("q900", "Macintosh Quadra 900", "Quadra900.rom", 64, 256,
-                        (8, 16, 20, 32, 64, 128, 256), "832x624x8",
-                        icount=True, easc=False, floppy=False),
+                        (8, 16, 20, 32, 64, 128, 256), "832x624",
+                        icount=True, easc=False, floppy=False,
+                        scsi_buses=2),
     # sizes the ROM's memory sizing gets right with QEMU's flat RAM
     "lc475": MachineType("lc475", "Macintosh LC 475", "LC475.rom", 32, 132,
-                         (4, 8, 16, 32, 64, 128), "640x480x8",
+                         (4, 8, 16, 32, 64, 128), "640x480",
                          icount=False, easc=True, onboard_nic=False,
                          pds_cards=("ethernet",)),
 }
@@ -200,6 +161,12 @@ def has_nic(machine_id: str, pds: str = "") -> bool:
     return machine_type(machine_id).onboard_nic or bool(card and card.nic)
 
 
+# The SCSI buses, by index: the label shown, and the QEMU bus the drives go
+# on. The internal bus is the one -device picks without bus=. On the
+# Quadra 900 the external chip is created first, so its bus is "scsi.0".
+SCSI_BUSES = (("Internal SCSI", ""), ("External SCSI", "scsi.0"))
+
+
 DEFAULT_MACHINE = "q800"
 RAM_MIN = 4
 # Mac OS 7 and 8 are happiest at or below this; more is allowed.
@@ -234,6 +201,15 @@ def screen_by_id(machine_id: str, screen_id: str) -> Screen | None:
         if s.id == screen_id:
             return s
     return None
+
+
+def normalise_screen_id(machine_id: str, screen_id: str | None) -> str:
+    """The Screen.id for *screen_id* on this model. Older records gave a depth
+    too (832x624x8): the size alone picks the monitor, anything else falls
+    back to the model's default."""
+    parts = str(screen_id or "").split("x")
+    sid = "x".join(parts[:2])
+    return sid if screen_by_id(machine_id, sid) else machine_type(machine_id).screen
 
 
 def screen_by_label(machine_id: str, label: str) -> Screen | None:

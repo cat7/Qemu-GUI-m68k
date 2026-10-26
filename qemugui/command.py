@@ -131,16 +131,19 @@ def drive_format(stored: str, file: str, base: str) -> str:
 
 def _scsi_args(s, machine_dir: str, platform: str) -> list[str]:
     """-device and -drive for one SCSI ID, the way the hand-written
-    launchers spell them."""
+    launchers spell them. A drive on the external bus names its bus."""
     name = qopt(_path(s.file, machine_dir, platform))
+    bus = systems.SCSI_BUSES[s.bus][1] if 0 < s.bus < len(systems.SCSI_BUSES) else ""
+    on_bus = f",bus={bus}" if bus else ""
+    ext = "x" if bus else ""
     if s.kind == "cdrom":
-        drive_id = f"cd{s.id}"
-        return ["-device", f"scsi-cd,scsi-id={s.id},drive={drive_id}",
+        drive_id = f"{ext}cd{s.id}"
+        return ["-device", f"scsi-cd{on_bus},scsi-id={s.id},drive={drive_id}",
                 "-drive", f"file={name},media=cdrom,format=raw,readonly=on,"
                           f"if=none,id={drive_id}"]
-    drive_id = f"disk{s.id}"
+    drive_id = f"{ext}disk{s.id}"
     fmt = drive_format(s.format, s.file, machine_dir)
-    return ["-device", f"scsi-hd,scsi-id={s.id},drive={drive_id}",
+    return ["-device", f"scsi-hd{on_bus},scsi-id={s.id},drive={drive_id}",
             "-drive", f"file={name},media=disk,format={fmt},if=none,id={drive_id}"]
 
 
@@ -185,8 +188,9 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
     argv += ["-audiodev", f"{audio},id={AUDIODEV_ID}"]
     argv += network_args(m)
 
-    for s in sorted(m.scsi, key=lambda x: x.id):
-        if s.file:
+    buses = systems.machine_type(m.machine).scsi_buses
+    for s in sorted(m.scsi, key=lambda x: (x.bus, x.id)):
+        if s.file and s.bus < buses:
             argv += _scsi_args(s, machine_dir, platform)
 
     if systems.machine_type(m.machine).floppy:
