@@ -2,7 +2,8 @@
 
 A portable launcher for the 68k Macintosh machines of `qemu-system-m68k`:
 the Macintosh Quadra 800 (`q800`), Quadra 700 (`q700`), Quadra 900 (`q900`),
-LC 475 (`lc475`), Macintosh II (`macii`) and IIfx (`maciifx`). Needs real Apple ROMs. The program must sit in the same
+LC 475 (`lc475`), Macintosh II (`macii`), IIx (`maciix`), IIcx (`maciicx`)
+and IIfx (`maciifx`). Needs real Apple ROMs. The program must sit in the same
 folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 `Machines` folder next to it, one subfolder per machine with its
 `machine.json`, its `pram.img`, a `run.command` and the last run's log.
@@ -16,15 +17,16 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 - Memory (`-m`): up to Apple's maximum: 136 MB on the Quadra 800, 68 MB on
   the Quadra 700, 256 MB on the Quadra 900. The LC 475's is 36 MB, but its
   ROM's memory sizing hangs at 36 MB, so 32 MB for now. Macintosh II:
-  1 to 8 MB. IIfx: 4 to 128 MB.
+  1 to 8 MB. IIx, IIcx and IIfx: 4 to 128 MB.
 - Quadra 900: keyboard and mouse go through its emulated SWIM I/O
   processor; its floppy drive does not work yet. LC 475: no built-in
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
-- Macintosh II and IIfx: no built-in video; QEMU puts its own NuBus video
-  card in slot 9 (any of the listed screen sizes, 1 to 32 bits per pixel).
-  No Ethernet. They need real-machine speed. The Mac II takes the Mac II
-  ROM (800K floppies) or the Mac IIx ROM (800K and 1.4 MB floppies); the
-  IIfx's floppy drive does not work yet.
+- Macintosh II, IIx, IIcx and IIfx: no built-in video; QEMU puts its own
+  NuBus video card in slot 9 (any of the listed screen sizes, 1 to 32 bits
+  per pixel). No Ethernet. They need real-machine speed. The Mac II takes
+  the Mac II ROM (800K floppies) or the Mac IIx ROM (800K and 1.4 MB
+  floppies); the IIx and IIcx use the Mac IIx ROM. The IIfx's floppy drive
+  does not work yet.
 - PDS slot (LC 475, Machine tab): Empty or the Ethernet card
   (`-device mac-pds-ethernet`), a SONIC card that Mac OS drives with its own
   "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP

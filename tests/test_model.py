@@ -28,11 +28,13 @@ def digest(p: Path) -> str:
 class TheModelTable(unittest.TestCase):
 
     def test_all_models_are_offered(self):
-        self.assertEqual(systems.machine_ids(), ["q800", "q700", "q900", "lc475", "macii", "maciifx"])
+        self.assertEqual(systems.machine_ids(), ["q800", "q700", "q900", "lc475", "macii", "maciix",
+                                                  "maciicx", "maciifx"])
         self.assertEqual(systems.machine_labels(),
                          ["Macintosh Quadra 800", "Macintosh Quadra 700",
                           "Macintosh Quadra 900", "Macintosh LC 475",
-                          "Macintosh II", "Macintosh IIfx"])
+                          "Macintosh II", "Macintosh IIx", "Macintosh IIcx",
+                          "Macintosh IIfx"])
 
     def test_every_model_is_consistent(self):
         for t in systems.MACHINES.values():
@@ -48,7 +50,8 @@ class TheModelTable(unittest.TestCase):
         """Apple's maximums (the LC 475's 36 MB does not boot yet)."""
         self.assertEqual({k: t.ram_max for k, t in systems.MACHINES.items()},
                          {"q800": 136, "q700": 68, "q900": 256, "lc475": 32,
-                          "macii": 8, "maciifx": 128})
+                          "macii": 8, "maciix": 128, "maciicx": 128,
+                          "maciifx": 128})
         for t in systems.MACHINES.values():
             self.assertEqual(max(t.ram_choices), t.ram_max, t.id)
 

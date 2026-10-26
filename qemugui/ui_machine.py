@@ -36,9 +36,9 @@ EDITOR_WIDTH = 760
 
 ICOUNT_TIP = (f"Adds -icount {ICOUNT_OPTION}: the emulated CPU runs at a fixed speed "
               "close to the real machine instead of as fast as the host allows, and the "
-              "Mac's clock keeps real time. The power-on self tests of the Mac II, IIfx "
-              "and Quadra 700 and 900 time the CPU and fail (no chime, or a sad Mac) when "
-              "it is too fast, and System 7.5 on the Mac II and IIfx stops with a "
+              "Mac's clock keeps real time. The power-on self tests of the Mac II family "
+              "and the Quadra 700 and 900 time the CPU and fail (no chime, or a sad Mac) "
+              "when it is too fast, and System 7.5 on the Mac II family stops with a "
               "divide-by-zero error, so it is needed there for now. It makes the Mac "
               "slower; leave it off on the Quadra 800.")
 EASC_TIP = ("The Quadra 800 has Apple's Enhanced ASC sound chip. Untick to emulate the "
