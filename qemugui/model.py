@@ -10,9 +10,9 @@ Three rules this file exists to enforce:
   handful of files the program itself wrote (see ``OWNED_FILES``) and leaves
   every other file, disk images above all, exactly where it is.
 * **Nothing here chooses a disk.** Hard disks, CDs and floppies start empty
-  and stay empty until the person picks something. The only files a new
-  machine names are its model's ROM (by plain name, next to the emulator)
-  and its own PRAM file inside its own folder.
+  and stay empty until the person picks something. The only file a new
+  machine names is its own PRAM file inside its own folder; the ROM is the
+  person's choice too.
 """
 
 from __future__ import annotations
@@ -391,7 +391,7 @@ class Machine:
             name=str(d.get("name", "New machine")),
             machine=mid,
             ram_mb=int(d.get("ram_mb", t.ram_mb)),
-            rom=str(d.get("rom", t.rom) or ""),
+            rom=str(d.get("rom", "") or ""),
             pram=str(d.get("pram", PRAM_NAME) or ""),
             screen=normalise_screen_id(mid, d.get("screen")),
             display=str(d.get("display") or default_display()),
@@ -449,7 +449,7 @@ def new_machine(name: str, machine_id: str) -> Machine:
     """Seed a record from one of the models: memory, ROM name, screen, speed
     limit, a fresh card address. No disk, CD or floppy is filled in."""
     t = machine_type(machine_id)
-    return Machine(name=name, machine=t.id, ram_mb=t.ram_mb, rom=t.rom, pram=PRAM_NAME,
+    return Machine(name=name, machine=t.id, ram_mb=t.ram_mb, rom="", pram=PRAM_NAME,
                    screen=t.screen, display=default_display(), icount=t.icount,
                    network=Network(mac=random_mac()))
 
@@ -463,8 +463,6 @@ def apply_machine_type(m: Machine, machine_id: str) -> None:
     if old.id == new.id:
         return
     m.machine = new.id
-    if not m.rom or m.rom == old.rom:
-        m.rom = new.rom
     if m.ram_mb > new.ram_max or m.ram_mb == old.ram_mb:
         m.ram_mb = new.ram_mb
     if screen_by_id(new.id, m.screen) is None:

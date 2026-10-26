@@ -19,7 +19,7 @@ from tkinter import ttk, filedialog, messagebox
 from . import model, paths, systems
 from .model import Machine, ScsiDrive, Floppy, Network, Share
 from .systems import ICOUNT_OPTION, machine_labels, machine_by_label, machine_type
-from .ui_dialogs import show_validation, CreateDiskDialog, ToolTip, HD_SC_SETUP_NOTE
+from .ui_dialogs import show_validation, CreateDiskDialog, ToolTip
 
 KIND_LABELS = {"": "Empty", "disk": "Hard disk", "cdrom": "CD-ROM"}
 KIND_BY_LABEL = {v: k for k, v in KIND_LABELS.items()}
@@ -329,9 +329,6 @@ class MachineEditor(tk.Toplevel):
                    fallback=lambda: self.qemu_dir).grid(row=r, column=1, columnspan=2,
                                                         sticky="ew", pady=4)
         r += 1
-        ttk.Label(f, text="A plain name is looked for next to qemu-system-m68k",
-                  foreground=GREY).grid(row=r, column=1, columnspan=2, sticky="w")
-        r += 1
         pl = ttk.Label(f, text="PRAM file:")
         pl.grid(row=r, column=0, sticky="w", pady=4)
         ToolTip(pl, PRAM_TIP)
@@ -341,7 +338,7 @@ class MachineEditor(tk.Toplevel):
         ttk.Button(f, text="New blank PRAM…", command=self._new_pram).grid(
             row=r, column=2, sticky="w", padx=(6, 0))
         r += 1
-        ttk.Label(f, text="pram.img = this machine's own, in its folder",
+        ttk.Label(f, text="Parameter RAM is kept in the machine folder",
                   foreground=GREY).grid(row=r, column=1, columnspan=2, sticky="w")
         r += 1
         ttk.Separator(f).grid(row=r, column=0, columnspan=3, sticky="ew", pady=10)
@@ -452,7 +449,7 @@ class MachineEditor(tk.Toplevel):
         self._heading(self.ext_scsi, 0, model.scsi_bus_name(1))
         self.ext_rows = self._scsi_table(self.ext_scsi, 1, 1)
         r += 1
-        ttk.Label(f, text="CD-ROMs are read only. Usual places: hard disk 0, CD-ROM 3.",
+        ttk.Label(f, text="Standard IDs: Hard disk ID 0, CD-ROM ID 3",
                   foreground=GREY).grid(row=r, column=0, sticky="w", padx=4, pady=(6, 0))
         r += 1
         bar = ttk.Frame(f)
@@ -463,9 +460,6 @@ class MachineEditor(tk.Toplevel):
         if not have_img:
             ttk.Label(bar, text=f"{paths.qemu_img_name()} not found",
                       foreground=GREY).pack(side="left", padx=6)
-        r += 1
-        ttk.Label(f, text=HD_SC_SETUP_NOTE, foreground=GREY, wraplength=EDITOR_WIDTH - 60,
-                  justify="left").grid(row=r, column=0, sticky="w", padx=4)
         r += 1
         ttk.Separator(f).grid(row=r, column=0, sticky="ew", pady=8)
         r += 1
@@ -480,8 +474,9 @@ class MachineEditor(tk.Toplevel):
         ttk.Label(f, text="1.44 MB raw images only; 400K and 800K disks do not work yet.",
                   foreground=GREY).grid(row=r, column=0, sticky="w", padx=4, pady=(6, 0))
         r += 1
-        ttk.Label(f, text="Start-up: a bootable floppy or CD-ROM is used first, then the "
-                          "disk set in the Startup Disk control panel.",
+        ttk.Label(f, text="Start-up order: 1. bootable floppy, 2. CD-ROM with highest SCSI "
+                          "ID (unless another disk is selected through the Startup Disk "
+                          "control panel)",
                   foreground=GREY, wraplength=EDITOR_WIDTH - 60, justify="left").grid(
             row=r, column=0, sticky="w", padx=4, pady=(4, 0))
 
@@ -515,7 +510,8 @@ class MachineEditor(tk.Toplevel):
         ff.grid(row=4, column=0, columnspan=3, sticky="w", pady=(10, 0))
         ttk.Label(ff, text="Port forwarding", font=("", 0, "bold")).grid(
             row=0, column=0, columnspan=5, sticky="w")
-        ttk.Label(ff, text="Slirp only; host ports below 1024 start with sudo",
+        ttk.Label(ff, text="For Slirp networking only. When forwarding ports below 1024 the "
+                           "administrator password is needed",
                   foreground=GREY).grid(row=1, column=0, columnspan=5, sticky="w", pady=(0, 4))
         for c, t in enumerate(("Protocol", "Host port", "Guest port")):
             ttk.Label(ff, text=t, foreground=GREY).grid(row=2, column=c, sticky="w", padx=(0, 6))
@@ -623,8 +619,7 @@ class MachineEditor(tk.Toplevel):
         """Memory choices, screens and the EASC box follow the model."""
         t = machine_type(machine_id)
         self.ram_cb.config(values=[str(x) for x in t.ram_choices])
-        self.ram_hint.config(text=f"Up to {t.ram_max} MB; Mac OS is happiest with "
-                                  f"{systems.RAM_COMFORTABLE} MB or less")
+        self.ram_hint.config(text=f"Up to {t.ram_max} MB")
         self.screen_cb.config(values=[s.label for s in t.screens])
         self.easc_cb.config(state="normal" if t.easc else "disabled")
         for row in self.floppy_rows:

@@ -19,10 +19,6 @@ DISK_SIZES = (("40 MB", "40M"), ("80 MB", "80M"), ("100 MB", "100M"), ("250 MB",
               ("500 MB", "500M"), ("1 GB", "1G"), ("2 GB", "2G"))
 DEFAULT_DISK_SIZE = "500 MB"
 
-HD_SC_SETUP_NOTE = ("Apple HD SC Setup makes only a 20 MB partition on these disks; "
-                    "use Drive Setup from the 7.6 or 8.0 Disk Tools floppy for the full size.")
-
-
 class ToolTip:
     """A short explanation that appears while the pointer rests on a widget."""
 
@@ -165,10 +161,6 @@ class CreateDiskDialog(simpledialog.Dialog):
         self.place_var = tk.StringVar(value=first)
         ttk.Combobox(master, textvariable=self.place_var, values=[c[0] for c in self.choices],
                      state="readonly", width=20).grid(row=r, column=1, sticky="w", padx=4)
-        r += 1
-        ttk.Label(master, text=HD_SC_SETUP_NOTE, foreground="gray", wraplength=360,
-                  justify="left").grid(row=r, column=0, columnspan=2, sticky="w", padx=4,
-                                       pady=(8, 2))
         r += 1
         if not self.qemu_img.is_file():
             ttk.Label(master, text=f"{self.qemu_img.name} is missing.", foreground="#a00").grid(

@@ -6,9 +6,8 @@ new model is one more ``MachineType`` line plus its list of screens, and a
 new screen mode is one more ``Screen`` line. Nothing in ``command.py``
 branches on a model's id; it reads these fields.
 
-The only file a model names is its ROM, and only by its plain file name
-(``Quadra800.rom``), which is looked for next to the emulator. Disks, CDs
-and floppies are always the person's own choice.
+Models name no files: the ROM, disks, CDs and floppies are always the
+person's own choice.
 """
 
 from __future__ import annotations
@@ -53,41 +52,25 @@ class Screen:
         return f"{self.monitor} — {text}" if self.monitor else text
 
 
-# The monitors each model's built-in video can drive, at the size each starts in.
-RGB12 = 'Apple 12" RGB'
-RGB13 = 'Apple 13" RGB / VGA'
-PORTRAIT15 = 'Apple 15" Portrait (greyscale)'
-COLOR16 = 'Apple 16" Color'
-COLOR21 = 'Apple 21" Color'
+# The Apple monitors the built-in video of every model here can drive, each
+# at the size it starts in.
+MONITORS: tuple[Screen, ...] = (
+    Screen(512, 384, 'Apple 12" RGB'),
+    Screen(640, 480, 'Apple 13" RGB / VGA'),
+    Screen(640, 870, 'Apple 15" Portrait (greyscale)'),
+    Screen(832, 624, 'Apple 16" Color'),
+    Screen(1152, 870, 'Apple 21" Color'),
+)
+SCREENS: dict[str, tuple[Screen, ...]] = {mid: MONITORS for mid in ("q800", "q700", "q900", "lc475")}
 
-SCREENS: dict[str, tuple[Screen, ...]] = {
-    "q800": (
-        Screen(640, 480),
-        Screen(800, 600),
-        Screen(1152, 870),
-    ),
-    "q700": (
-        Screen(512, 384, RGB12),
-        Screen(640, 480, RGB13),
-        Screen(640, 870, PORTRAIT15),
-        Screen(832, 624, COLOR16),
-        Screen(1152, 870, COLOR21),
-    ),
-    # The LC 475 has 1 MB of VRAM at most
-    "lc475": (
-        Screen(640, 480),
-        Screen(800, 600),
-    ),
-}
-# The Quadra 900 has the Quadra 700's built-in video
-SCREENS["q900"] = SCREENS["q700"]
+# Older records named sizes that are no monitor: the screen they really got
+OLD_SCREENS = {"800x600": "640x480"}
 
 
 @dataclass(frozen=True)
 class MachineType:
     id: str                      # the -M value
     label: str
-    rom: str                     # looked for next to the emulator
     ram_mb: int                  # what a new machine starts with
     ram_max: int                 # QEMU refuses more
     ram_choices: tuple[int, ...]
@@ -105,20 +88,21 @@ class MachineType:
 
 
 MACHINES: dict[str, MachineType] = {
-    "q800": MachineType("q800", "Macintosh Quadra 800", "Quadra800.rom", 128, 1024,
-                        (8, 16, 32, 64, 128, 256, 512, 1024), "800x600",
+    "q800": MachineType("q800", "Macintosh Quadra 800", 128, 136,
+                        (8, 16, 32, 64, 128, 136), "832x624",
                         icount=False, easc=True),
-    "q700": MachineType("q700", "Macintosh Quadra 700", "Quadra700.rom", 64, 256,
-                        (8, 16, 20, 32, 64, 128, 256), "832x624",
+    "q700": MachineType("q700", "Macintosh Quadra 700", 64, 68,
+                        (8, 16, 20, 32, 64, 68), "832x624",
                         icount=True, easc=False),
     # its floppy drive sits behind an I/O processor that is not emulated yet
-    "q900": MachineType("q900", "Macintosh Quadra 900", "Quadra900.rom", 64, 256,
+    "q900": MachineType("q900", "Macintosh Quadra 900", 64, 256,
                         (8, 16, 20, 32, 64, 128, 256), "832x624",
                         icount=True, easc=False, floppy=False,
                         scsi_buses=2),
-    # sizes the ROM's memory sizing gets right with QEMU's flat RAM
-    "lc475": MachineType("lc475", "Macintosh LC 475", "LC475.rom", 32, 132,
-                         (4, 8, 16, 32, 64, 128), "640x480",
+    # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
+    # 36 MB of QEMU's flat RAM, so 32 for now
+    "lc475": MachineType("lc475", "Macintosh LC 475", 32, 32,
+                         (4, 8, 16, 32), "640x480",
                          icount=False, easc=True, onboard_nic=False,
                          pds_cards=("ethernet",)),
 }
@@ -169,8 +153,6 @@ SCSI_BUSES = (("Internal SCSI", ""), ("External SCSI", "scsi.0"))
 
 DEFAULT_MACHINE = "q800"
 RAM_MIN = 4
-# Mac OS 7 and 8 are happiest at or below this; more is allowed.
-RAM_COMFORTABLE = 128
 
 
 def machine_ids() -> list[str]:
@@ -205,10 +187,11 @@ def screen_by_id(machine_id: str, screen_id: str) -> Screen | None:
 
 def normalise_screen_id(machine_id: str, screen_id: str | None) -> str:
     """The Screen.id for *screen_id* on this model. Older records gave a depth
-    too (832x624x8): the size alone picks the monitor, anything else falls
-    back to the model's default."""
+    too (832x624x8): the size alone picks the monitor; 800x600 always came
+    up as 640x480; anything else falls back to the model's default."""
     parts = str(screen_id or "").split("x")
     sid = "x".join(parts[:2])
+    sid = OLD_SCREENS.get(sid, sid)
     return sid if screen_by_id(machine_id, sid) else machine_type(machine_id).screen
 
 

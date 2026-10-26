@@ -11,11 +11,11 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 
 - Machine model, from the table in `qemugui/systems.py` (one `MachineType`
   line per model, one `Screen` line per monitor).
-- ROM (`-bios`): starts as `Quadra800.rom`, `Quadra700.rom`, `Quadra900.rom`
-  (the same ROM as the 700) or `LC475.rom`, looked for next to the emulator.
-- Memory (`-m`): up to 1024 MB on the Quadra 800, 256 MB on the Quadra 700
-  and 900, 128 MB on the LC 475 (whose ROM sizes memory correctly only for
-  the sizes offered).
+- ROM (`-bios`): chosen by the person; a new machine has none. (The
+  Quadra 900 uses the same ROM as the 700.)
+- Memory (`-m`): up to Apple's maximum: 136 MB on the Quadra 800, 68 MB on
+  the Quadra 700, 256 MB on the Quadra 900. The LC 475's is 36 MB, but its
+  ROM's memory sizing hangs at 36 MB, so 32 MB for now.
 - Quadra 900: keyboard and mouse go through its emulated SWIM I/O
   processor; its floppy drive does not work yet. LC 475: no built-in
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
@@ -26,22 +26,21 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 - PRAM (`-drive ...,if=mtd`): each machine's own 512-byte `pram.img`, made
   blank when the machine is first saved; "Reset PRAM" clears it. Both
   models keep their settings there between runs.
-- SCSI IDs 0 to 6: hard disk (`scsi-hd`) or CD-ROM (`scsi-cd`, read only).
+- SCSI IDs 0 to 6: hard disk (`scsi-hd`) or CD-ROM (`scsi-cd`).
   The Quadra 900 also has its external SCSI bus, IDs 0 to 6 again
   (`bus=scsi.0`); its internal bus is the one drives go on without `bus=`.
   Two bootable system CDs at once can leave the Mac at the flashing "?"
   (the older CD's driver takes over both drives); this happens on one bus
   too.
-  New blank disks are made with `qemu-img`. Apple HD SC Setup makes only a
-  20 MB partition on them; use Drive Setup from the 7.6 or 8.0 Disk Tools
-  floppy for the full size.
+  New blank disks are made with `qemu-img`.
 - Two floppy drives, 1.44 MB raw images (`if=floppy`); "Read only" throws
   changes away (`snapshot=on`). 400K/800K (GCR) disks do not work yet.
-- Screen (`-g WxH`): one line per monitor, at the size it starts in;
-  cocoa (with optional Option/Command swap) or sdl. On the Quadra 700 and
-  900 the size picks the Apple monitor (12" RGB, 13" RGB/VGA, 15" Portrait,
-  16" Color, 21" Color). Resolution and colour depth are chosen in Mac OS
-  (Monitors control panel), which keeps them in PRAM.
+- Monitor (`-g WxH`): the Apple monitor connected to the built-in video,
+  the same five on every model: 12" RGB (512 × 384), 13" RGB/VGA
+  (640 × 480), 15" Portrait (640 × 870), 16" Color (832 × 624) and 21"
+  Color (1152 × 870); the size picks the monitor. Colour depth is chosen in
+  Mac OS (Monitors control panel), which keeps it in PRAM. cocoa (with
+  optional Option/Command swap) or sdl.
 - Speed limit (`-icount shift=6,align=on`): on by default for the Quadra
   700, whose ROM self tests need real-machine speed; off for the Quadra 800.
   `align=on` keeps the Mac's clock in real time; without it the clock, key
@@ -54,9 +53,9 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`.
 - Sound: ASC through `-audiodev` (CoreAudio on a Mac); Enhanced ASC on the
   Quadra 800 can be turned off.
-- `-rtc base=localtime`. There is no boot device setting: a bootable floppy
-  or CD is used first, then the Startup Disk control panel's choice. Both
-  models start up from SCSI CD-ROMs (Mac OS 8.1, System 7.5.3) and 1.44 MB
+- `-rtc base=localtime`. There is no boot device setting. Start-up order:
+  1. bootable floppy, 2. CD-ROM with highest SCSI ID (unless another disk
+  is selected through the Startup Disk control panel). The models start up from SCSI CD-ROMs (Mac OS 8.1, System 7.5.3) and 1.44 MB
   floppies; a non-bootable CD mounts once a system with the Apple CD-ROM
   extension is running.
 - Shared folder over FTP (pyftpdlib): with slirp the Mac reaches it at

@@ -92,7 +92,7 @@ class UserLaunchers(unittest.TestCase):
         self.assertEqual(sorted(got), sorted(want))
 
     def test_q800(self):
-        self.check("q800.json", USER_Q800, "q800", "800x600")
+        self.check("q800.json", USER_Q800, "q800", "640x480")    # 800x600 always gave 640x480
 
     def test_q700(self):
         self.check("q700.json", USER_Q700, "q700", "1152x870")   # the old depth is dropped
@@ -129,8 +129,8 @@ class Machines(unittest.TestCase):
         argv = argv_for(m, machine_dir="/M/A")
         self.assertEqual(option(argv, "-M"), ["q800,audiodev=snd"])
         self.assertEqual(option(argv, "-m"), ["128"])
-        self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra800.rom"])
-        self.assertEqual(option(argv, "-g"), ["800x600"])
+        self.assertEqual(option(argv, "-bios"), [])          # no ROM until one is picked
+        self.assertEqual(option(argv, "-g"), ["832x624"])
         self.assertNotIn("-icount", argv)
         self.assertIn("file=/M/A/pram.img,format=raw,if=mtd", argv)
         self.assertEqual(option(argv, "-rtc"), ["base=localtime"])
@@ -142,7 +142,7 @@ class Machines(unittest.TestCase):
         self.assertEqual(option(argv, "-M"), ["q700,audiodev=snd"])
         self.assertEqual(option(argv, "-icount"), ["shift=6,align=on"])
         self.assertEqual(option(argv, "-m"), ["64"])
-        self.assertEqual(option(argv, "-bios"), [f"{QD}/Quadra700.rom"])
+        self.assertEqual(option(argv, "-bios"), [])
         self.assertEqual(option(argv, "-g"), ["832x624"])
 
     def test_icount_is_a_choice_on_either(self):
@@ -375,6 +375,7 @@ class ExtraArgsAndWindows(unittest.TestCase):
 
     def test_bat(self):
         m = model.new_machine("Mac OS 8", "q800")
+        m.rom = "Quadra800.rom"
         m.scsi = [ScsiDrive(0, "disk", r"C:\disks\8.1.img")]
         argv = command.build_argv(m, r"C:\qemu-m68k", r"C:\Machines\Mac OS 8", "win32")
         self.assertEqual(argv[0], r"C:\qemu-m68k\qemu-system-m68k.exe")

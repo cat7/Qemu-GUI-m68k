@@ -44,8 +44,11 @@ class TheModelTable(unittest.TestCase):
             self.assertEqual(len(labels), len(set(labels)), t.id)
 
     def test_memory_limits(self):
-        self.assertEqual(systems.MACHINES["q800"].ram_max, 1024)
-        self.assertEqual(systems.MACHINES["q700"].ram_max, 256)
+        """Apple's maximums (the LC 475's 36 MB does not boot yet)."""
+        self.assertEqual({k: t.ram_max for k, t in systems.MACHINES.items()},
+                         {"q800": 136, "q700": 68, "q900": 256, "lc475": 32})
+        for t in systems.MACHINES.values():
+            self.assertEqual(max(t.ram_choices), t.ram_max, t.id)
 
     def test_q700_needs_icount_q800_does_not(self):
         self.assertTrue(systems.MACHINES["q700"].icount)
@@ -63,13 +66,16 @@ class TheModelTable(unittest.TestCase):
                          ["512x384", "640x480", "640x870", "832x624", "1152x870"])
         self.assertIsNone(systems.screen_by_id("q700", "800x600"))
         self.assertTrue(all(s.monitor for s in systems.SCREENS["q700"]))
-        self.assertIs(systems.SCREENS["q900"], systems.SCREENS["q700"])
+        for mid in systems.machine_ids():
+            self.assertIs(systems.SCREENS[mid], systems.MONITORS)
 
     def test_old_screen_ids_keep_their_size(self):
         self.assertEqual(systems.normalise_screen_id("q700", "832x624x24"), "832x624")
         self.assertEqual(systems.normalise_screen_id("q700", "640x870x1"), "640x870")
-        self.assertEqual(systems.normalise_screen_id("q700", "800x600x8"), "832x624")
-        self.assertEqual(systems.normalise_screen_id("q800", None), "800x600")
+        self.assertEqual(systems.normalise_screen_id("q700", "800x600x8"), "640x480")
+        self.assertEqual(systems.normalise_screen_id("q700", "1024x768x8"), "832x624")
+        self.assertEqual(systems.normalise_screen_id("q800", None), "832x624")
+        self.assertEqual(systems.normalise_screen_id("q800", "800x600x8"), "640x480")
         d = model.new_machine("A", "q900").to_dict()
         d["screen"] = "1152x870x4"
         self.assertEqual(Machine.from_dict(d).screen, "1152x870")
@@ -122,7 +128,7 @@ class Record(unittest.TestCase):
     def test_a_bare_record_takes_its_models_defaults(self):
         m = Machine.from_dict({"name": "x", "machine": "q700"})
         self.assertEqual((m.ram_mb, m.rom, m.screen, m.icount, m.pram),
-                         (64, "Quadra700.rom", "832x624", True, "pram.img"))
+                         (64, "", "832x624", True, "pram.img"))
         self.assertRegex(m.network.mac, r"^08:00:07:")
         self.assertEqual(m.floppies, [None, None])
 
@@ -144,10 +150,12 @@ class SwitchingModel(unittest.TestCase):
         m = model.new_machine("x", "q800")
         model.apply_machine_type(m, "q700")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.screen, m.icount),
-                         ("q700", "Quadra700.rom", 64, "832x624", True))
+                         ("q700", "", 64, "832x624", True))
+        m.rom = "/roms/mine.rom"
         model.apply_machine_type(m, "q800")
-        self.assertEqual((m.machine, m.rom, m.ram_mb, m.icount), ("q800", "Quadra800.rom", 128, False))
-        self.assertEqual(m.screen, "800x600")      # no 832x624 there: its default
+        self.assertEqual((m.machine, m.rom, m.ram_mb, m.icount),
+                         ("q800", "/roms/mine.rom", 128, False))   # the ROM is the person's
+        self.assertEqual(m.screen, "832x624")
         m.screen = "1152x870"
         model.apply_machine_type(m, "q700")
         self.assertEqual(m.screen, "1152x870")     # the q700 offers it too: kept
@@ -178,10 +186,12 @@ class Checks(unittest.TestCase):
 
     def test_memory_over_the_models_limit(self):
         m = model.new_machine("x", "q700")
-        m.ram_mb = 512
-        self.assertTrue(any("256" in e for e in self.errors(m)))
+        m.ram_mb = 128
+        self.assertTrue(any("68" in e for e in self.errors(m)))
         m = model.new_machine("x", "q800")
         m.ram_mb = 512
+        self.assertTrue(any("136" in e for e in self.errors(m)))
+        m.ram_mb = 136
         self.assertEqual(self.errors(m), [])
 
     def test_a_screen_the_model_cannot_show(self):
@@ -224,6 +234,8 @@ class Checks(unittest.TestCase):
     def test_start_needs_the_rom(self):
         with tempfile.TemporaryDirectory() as td:
             m = model.new_machine("x", "q800")
+            self.assertEqual(model.start_blockers(m, td), ["No ROM chosen."])   # none picked
+            m.rom = "Quadra800.rom"
             self.assertTrue(model.start_blockers(m, td))           # not there
             (Path(td) / "Quadra800.rom").write_bytes(b"\0")
             self.assertEqual(model.start_blockers(m, td), [])

@@ -162,8 +162,8 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
                platform: str = paths.HOST_PLATFORM) -> list[str]:
     """The complete argv, first token = absolute path of the QEMU binary.
 
-    *qemu_dir* is the folder the program itself lives in (ROMs are looked for
-    there); *machine_dir* is the machine's own folder (its PRAM, and any
+    *qemu_dir* is the folder the program itself lives in (a ROM given by
+    plain name, as older records do, is there); *machine_dir* is the machine's own folder (its PRAM, and any
     relative image path)."""
     qd = qemu_dir
     argv: list[str] = [paths.join_path(qd, paths.qemu_binary_name(platform), platform)]

@@ -284,6 +284,7 @@ class Windows(unittest.TestCase):
 
     def add(self, name: str, mid: str) -> model.Machine:
         m = model.new_machine(name, mid)
+        m.rom = {"q800": "Quadra800.rom", "q700": "Quadra700.rom"}.get(mid, "")
         self.w.library.save(m)
         self.w.refresh_list(select=name)
         return m
@@ -353,7 +354,7 @@ class Windows(unittest.TestCase):
         e._type_chosen()
         got = e.collect()
         self.assertEqual((got.machine, got.rom, got.ram_mb, got.screen, got.icount),
-                         ("q700", "Quadra700.rom", 64, "832x624", True))
+                         ("q700", "", 64, "832x624", True))
         self.assertEqual(list(e.screen_cb.cget("values")),
                          [s.label for s in model.machine_type("q700").screens])
         self.assertTrue(e.easc_cb.instate(["disabled"]))
