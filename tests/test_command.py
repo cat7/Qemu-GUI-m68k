@@ -343,6 +343,22 @@ class Network_(unittest.TestCase):
         self.assertEqual(option(argv, "-nic"), ["user,model=dp83932,mac=08:00:07:01:02:03"])
         self.assertNotIn("mac-pds-ethernet", " ".join(argv))
 
+    def test_nubus_ethernet_card(self):
+        for mid in ("macii", "maciix", "maciicx", "maciifx"):
+            m = model.new_machine("A", mid)
+            m.pds = "nubus-ethernet"
+            m.network = Network(mode="user", mac="08:00:07:01:02:03")
+            argv = argv_for(m)
+            self.assertEqual(option(argv, "-nic"), ["none"])
+            self.assertEqual(option(argv, "-netdev"), ["user,id=net0"])
+            self.assertIn("nubus-ethernet,netdev=net0,mac=08:00:07:01:02:03",
+                          option(argv, "-device"))
+
+    def test_nubus_card_not_in_the_pds_slot(self):
+        m = model.new_machine("A", "lc475")
+        m.pds = "nubus-ethernet"
+        self.assertNotIn("nubus-ethernet", " ".join(argv_for(m)))
+
     def test_vmnet_runs_under_sudo(self):
         m = model.new_machine("A", "q800")
         m.network.mode = "vmnet-shared"

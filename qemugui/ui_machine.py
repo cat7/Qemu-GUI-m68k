@@ -314,7 +314,8 @@ class MachineEditor(tk.Toplevel):
         self.ram_hint = ttk.Label(f, text="", foreground=GREY)
         self.ram_hint.grid(row=r, column=1, columnspan=2, sticky="w")
         r += 1
-        ttk.Label(f, text="PDS slot:").grid(row=r, column=0, sticky="w", pady=4)
+        self.pds_label = ttk.Label(f, text="PDS slot:")
+        self.pds_label.grid(row=r, column=0, sticky="w", pady=4)
         self.pds_var = tk.StringVar(value=systems.PDS_EMPTY_LABEL)
         self.pds_cb = ttk.Combobox(f, textvariable=self.pds_var, state="readonly", width=26,
                                    values=[systems.PDS_EMPTY_LABEL])
@@ -633,8 +634,14 @@ class MachineEditor(tk.Toplevel):
             self.scsi_heading.config(text="SCSI")
         self.pds_cb.config(values=systems.pds_labels(machine_id),
                            state="readonly" if t.pds_cards else "disabled")
-        self.pds_hint.config(text="Cards for the processor-direct slot" if t.pds_cards
-                             else f"The {t.label} has no PDS slot")
+        self.pds_label.config(text=f"{t.slot_kind} slot:")
+        if not t.pds_cards:
+            hint = f"The {t.label} has no {t.slot_kind} slot"
+        elif t.slot_kind == "NuBus":
+            hint = "A card for a NuBus slot (the first one free after the video card)"
+        else:
+            hint = "Cards for the processor-direct slot"
+        self.pds_hint.config(text=hint)
         if systems.pds_by_label(self.pds_var.get()) not in t.pds_cards:
             self.pds_var.set(systems.PDS_EMPTY_LABEL)
         self._update_net_hint()
@@ -648,9 +655,10 @@ class MachineEditor(tk.Toplevel):
         mid = getattr(self, "shown_type", None) or self.machine_id
         t = machine_type(mid)
         if systems.has_nic(mid, systems.pds_by_label(self.pds_var.get())):
-            text = "" if t.onboard_nic else "Ethernet card in the PDS slot"
+            text = "" if t.onboard_nic else f"Ethernet card in the {t.slot_kind} slot"
         elif t.pds_cards:
-            text = f"The {t.label} has no Ethernet: put the Ethernet card in its PDS slot " \
+            text = f"The {t.label} has no Ethernet: put the Ethernet card in its " \
+                   f"{t.slot_kind} slot " \
                    "(Machine tab)"
         else:
             text = f"The {t.label} has no Ethernet"

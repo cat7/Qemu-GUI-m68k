@@ -82,7 +82,8 @@ class MachineType:
     easc: bool                   # has the "easc" machine property
     floppy: bool = True          # QEMU emulates its floppy drives
     onboard_nic: bool = True     # built-in SONIC Ethernet (-nic model=dp83932)
-    pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its processor-direct slot takes
+    pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its expansion slot takes
+    slot_kind: str = "PDS"       # what that slot is: "PDS" or "NuBus"
     scsi_buses: int = 1          # 2: also an external SCSI bus (SCSI_BUSES)
 
     @property
@@ -107,30 +108,37 @@ MACHINES: dict[str, MachineType] = {
                          (4, 8, 16, 32), "640x480",
                          icount=False, easc=True, onboard_nic=False,
                          pds_cards=("ethernet",)),
-    # 1 MB SIMMs, as Apple shipped it; no Ethernet. 800K floppies, and
-    # 1.4 MB ones with the Mac IIx ROM (the FDHD upgrade).
+    # 1 MB SIMMs, as Apple shipped it. 800K floppies, and 1.4 MB ones
+    # with the Mac IIx ROM (the FDHD upgrade). The Mac II family has no
+    # built-in Ethernet; it takes the Ethernet NB card in a NuBus slot.
     "macii": MachineType("macii", "Macintosh II", 8, 8,
                          (1, 2, 4, 8), "640x480",
-                         icount=True, easc=False, onboard_nic=False),
+                         icount=True, easc=False, onboard_nic=False,
+                         pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
     # The Mac II board with a 68030 and SIMMs of up to 16 MB; the Mac IIx
     # ROM, which reads 800K and 1.4 MB floppies. The IIcx has three slots.
     "maciix": MachineType("maciix", "Macintosh IIx", 32, 128,
                           (4, 8, 16, 32, 64, 128), "640x480",
-                          icount=True, easc=False, onboard_nic=False),
+                          icount=True, easc=False, onboard_nic=False,
+                          pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
     "maciicx": MachineType("maciicx", "Macintosh IIcx", 32, 128,
                            (4, 8, 16, 32, 64, 128), "640x480",
-                           icount=True, easc=False, onboard_nic=False),
-    # Two banks of 4-64 MB; no Ethernet.
+                           icount=True, easc=False, onboard_nic=False,
+                           pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
+    # Two banks of 4-64 MB.
     "maciifx": MachineType("maciifx", "Macintosh IIfx", 32, 128,
                            (4, 8, 16, 20, 32, 64, 128), "640x480",
-                           icount=True, easc=False, onboard_nic=False),
+                           icount=True, easc=False, onboard_nic=False,
+                           pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
 }
 
 
 
 @dataclass(frozen=True)
 class PdsCard:
-    """A card for the processor-direct slot, plugged in with -device."""
+    """A card for the machine's expansion slot (PDS or NuBus), plugged in
+    with -device. A NuBus card goes in the first free slot, next to the
+    video card in slot 9."""
     id: str
     label: str
     device: str                  # the QEMU device name
@@ -139,6 +147,8 @@ class PdsCard:
 
 PDS_CARDS: dict[str, PdsCard] = {
     "ethernet": PdsCard("ethernet", "Ethernet card (SONIC)", "mac-pds-ethernet", nic=True),
+    "nubus-ethernet": PdsCard("nubus-ethernet", "Ethernet NB card (SONIC)", "nubus-ethernet",
+                              nic=True),
 }
 PDS_EMPTY_LABEL = "Empty"
 

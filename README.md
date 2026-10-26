@@ -23,13 +23,18 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
 - Macintosh II, IIx, IIcx and IIfx: no built-in video; QEMU puts its own
   NuBus video card in slot 9 (any of the listed screen sizes, 1 to 32 bits
-  per pixel). No Ethernet. They need real-machine speed. The Mac II takes
+  per pixel). No built-in Ethernet. They need real-machine speed. The Mac II takes
   the Mac II ROM (800K floppies) or the Mac IIx ROM (800K and 1.4 MB
   floppies); the IIx and IIcx use the Mac IIx ROM.
 - PDS slot (LC 475, Machine tab): Empty or the Ethernet card
   (`-device mac-pds-ethernet`), a SONIC card that Mac OS drives with its own
   "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP
   control panels.
+- NuBus slot (Mac II, IIx, IIcx, IIfx, Machine tab): Empty or the Ethernet
+  NB card (`-device nubus-ethernet`), a SONIC card with its own buffer RAM
+  that Mac OS drives with its "Sonic 16 NB" driver. It goes in the first
+  free slot after the video card. Open Transport needs a 68030, so on the
+  Mac II (68020) the card needs classic AppleTalk and MacTCP instead.
 - PRAM (`-drive ...,if=mtd`): each machine's own 512-byte `pram.img`, made
   blank when the machine is first saved; "Reset PRAM" clears it. Both
   models keep their settings there between runs.
@@ -56,8 +61,9 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   50 by default): macOS and Mac OS both accelerate the pointer.
 - Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine
   card address under Apple's `08:00:07` prefix; port forwarding with slirp.
-  With the LC 475's Ethernet card the same settings become
-  `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`.
+  With an Ethernet card (LC 475, Mac II family) the same settings become
+  `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`
+  (`nubus-ethernet` on the Mac II family).
 - Sound: ASC through `-audiodev` (CoreAudio on a Mac); Enhanced ASC on the
   Quadra 800 can be turned off.
 - `-rtc base=localtime`. There is no boot device setting. Start-up order:

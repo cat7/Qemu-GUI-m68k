@@ -343,7 +343,7 @@ class Machine:
     audio: str = "default"
     easc: bool = True            # q800 only: Enhanced ASC (off = plain ASC)
     network: Network = field(default_factory=Network)
-    pds: str = ""                # card in the processor-direct slot, "" = empty
+    pds: str = ""                # card in the PDS or NuBus slot, "" = empty
     scsi: list = field(default_factory=list)
     floppies: list = field(default_factory=lambda: [None] * FLOPPY_DRIVES)
     share: Share = field(default_factory=Share)
@@ -573,7 +573,7 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
         errors.append(f"The {t.label} has no slot for that card.")
     elif net.mode != "none" and not systems.has_nic(m.machine, m.pds):
         warnings.append(f"The {t.label} has no Ethernet unless the Ethernet card is "
-                        "in its PDS slot.")
+                        f"in its {t.slot_kind} slot.")
     share = m.share
     if share.scope not in SHARE_SCOPES:
         errors.append(f"'{share.scope}' is not a sharing setting.")

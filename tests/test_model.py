@@ -437,5 +437,26 @@ class PdsSlot(unittest.TestCase):
         errors, _w = model.validate(m2, None, check_files=False)
         self.assertTrue(any("no slot" in e for e in errors))
 
+    def test_nubus_validation(self):
+        m = model.new_machine("A", "maciifx")
+        m.network.mode = "user"
+        _e, warnings = model.validate(m, None, check_files=False)
+        self.assertTrue(any("NuBus slot" in w for w in warnings))
+        m.pds = "nubus-ethernet"
+        errors, warnings = model.validate(m, None, check_files=False)
+        self.assertEqual(errors, [])
+        self.assertFalse(any("slot" in w for w in warnings))
+        m.pds = "ethernet"
+        errors, _w = model.validate(m, None, check_files=False)
+        self.assertTrue(any("no slot" in e for e in errors))
+
+    def test_switching_within_the_mac_ii_family_keeps_the_card(self):
+        m = model.new_machine("A", "maciix")
+        m.pds = "nubus-ethernet"
+        model.apply_machine_type(m, "maciifx")
+        self.assertEqual(m.pds, "nubus-ethernet")
+        model.apply_machine_type(m, "lc475")
+        self.assertEqual(m.pds, "")
+
 if __name__ == "__main__":
     unittest.main()

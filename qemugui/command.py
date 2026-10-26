@@ -97,7 +97,7 @@ def nic_option(net) -> str:
 
 
 def network_args(m: Machine) -> list[str]:
-    """-nic for the built-in Ethernet; a card in the PDS slot is a -device,
+    """-nic for the built-in Ethernet; a card in the PDS or NuBus slot is a -device,
     with a -netdev behind it when the network is on."""
     card = systems.pds_card(m.pds)
     if card is None or card.id not in m.type.pds_cards:
