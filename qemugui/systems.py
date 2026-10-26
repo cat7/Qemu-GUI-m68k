@@ -97,10 +97,9 @@ MACHINES: dict[str, MachineType] = {
     "q700": MachineType("q700", "Macintosh Quadra 700", 64, 68,
                         (8, 16, 20, 32, 64, 68), "832x624",
                         icount=True, easc=False),
-    # its floppy drive sits behind an I/O processor that is not emulated yet
     "q900": MachineType("q900", "Macintosh Quadra 900", 64, 256,
                         (8, 16, 20, 32, 64, 128, 256), "832x624",
-                        icount=True, easc=False, floppy=False,
+                        icount=True, easc=False,
                         scsi_buses=2),
     # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
     # 36 MB of QEMU's flat RAM, so 32 for now
@@ -121,12 +120,10 @@ MACHINES: dict[str, MachineType] = {
     "maciicx": MachineType("maciicx", "Macintosh IIcx", 32, 128,
                            (4, 8, 16, 32, 64, 128), "640x480",
                            icount=True, easc=False, onboard_nic=False),
-    # Two banks of 4-64 MB; its floppy drive sits behind an I/O processor
-    # that is not emulated yet; no Ethernet.
+    # Two banks of 4-64 MB; no Ethernet.
     "maciifx": MachineType("maciifx", "Macintosh IIfx", 32, 128,
                            (4, 8, 16, 20, 32, 64, 128), "640x480",
-                           icount=True, easc=False, floppy=False,
-                           onboard_nic=False),
+                           icount=True, easc=False, onboard_nic=False),
 }
 
 
