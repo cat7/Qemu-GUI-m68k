@@ -8,6 +8,15 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 `Machines` folder next to it, one subfolder per machine with its
 `machine.json`, its `pram.img`, a `run.command` and the last run's log.
 
+## Which emulator
+
+Upstream QEMU has only the Quadra 800. All the other models, and the
+floppy and SCSI support this launcher relies on, come from the `q700`
+branch of https://github.com/cat7/m68k-rom (its README lists what that
+branch adds). Build `qemu-system-m68k` from that branch and put this
+launcher next to it. With an upstream build only the Quadra 800 works,
+and floppies other than 1.44 MB may not.
+
 ## What it sets up
 
 - Machine model, from the table in `qemugui/systems.py` (one `MachineType`
@@ -36,8 +45,8 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   free slot after the video card. Open Transport needs a 68030, so on the
   Mac II (68020) the card needs classic AppleTalk and MacTCP instead.
 - PRAM (`-drive ...,if=mtd`): each machine's own 512-byte `pram.img`, made
-  blank when the machine is first saved; "Reset PRAM" clears it. Both
-  models keep their settings there between runs.
+  blank when the machine is first saved; "Reset PRAM" clears it. Every
+  model keeps its settings there between runs.
 - SCSI IDs 0 to 6: hard disk (`scsi-hd`) or CD-ROM (`scsi-cd`).
   The Quadra 900 also has its external SCSI bus, IDs 0 to 6 again
   (`bus=scsi.0`); its internal bus is the one drives go on without `bus=`.
@@ -64,7 +73,8 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   Mac OS (Monitors control panel), which keeps it in PRAM. cocoa (with
   optional Option/Command swap) or sdl.
 - Speed limit (`-icount shift=6,align=on`): on by default for the Quadra
-  700, whose ROM self tests need real-machine speed; off for the Quadra 800.
+  700, Quadra 900 and the Mac II family, whose ROM self tests need
+  real-machine speed; off for the Quadra 800 and LC 475.
   `align=on` keeps the Mac's clock in real time; without it the clock, key
   repeat and double-click time ran about three times too fast.
 - Mouse speed (`-global adb-mouse.speed=N`, percent of the host's motion,
@@ -75,10 +85,10 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`
   (`nubus-ethernet` on the Mac II family).
 - Sound: ASC through `-audiodev` (CoreAudio on a Mac); Enhanced ASC on the
-  Quadra 800 can be turned off.
+  Quadra 800 and LC 475 can be turned off.
 - `-rtc base=localtime`. There is no boot device setting. Start-up order:
   1. bootable floppy, 2. CD-ROM with highest SCSI ID (unless another disk
-  is selected through the Startup Disk control panel). The models start up from SCSI CD-ROMs (Mac OS 8.1, System 7.5.3) and 1.44 MB
+  is selected through the Startup Disk control panel). The models start up from SCSI CD-ROMs (Mac OS 8.1, System 7.5.3) and from
   floppies; a non-bootable CD mounts once a system with the Apple CD-ROM
   extension is running.
 - Shared folder over FTP (pyftpdlib): with slirp the Mac reaches it at
