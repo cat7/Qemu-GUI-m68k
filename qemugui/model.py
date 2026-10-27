@@ -101,9 +101,9 @@ NETWORK_MODES_WITH_IFNAME = ("vmnet-bridged", "tap")
 PRAM_NAME = "pram.img"
 PRAM_SIZE = 512
 
-# A 1.44 MB floppy image. 400K and 800K (GCR) disks are not emulated yet.
-FLOPPY_SIZE = 1474560
-GCR_SIZES = {409600: "400K", 819200: "800K"}
+# Raw floppy images: 400K and 800K (GCR) and 1.44 MB (MFM). A two-sided
+# format of a 400K image in the Mac makes it an 800K one.
+FLOPPY_SIZES = {409600: "400K", 819200: "800K", 1474560: "1.44 MB"}
 
 # The complete list of files Qemu-system-m68k GUI is allowed to delete from a
 # machine folder. Anything not on this list -- above all a disk image -- is
@@ -504,13 +504,11 @@ def floppy_problem(path: str) -> str | None:
         size = Path(path).expanduser().stat().st_size
     except OSError:
         return None
-    if size == FLOPPY_SIZE:
+    if size in FLOPPY_SIZES:
         return None
-    if size in GCR_SIZES:
-        return f"{Path(path).name} is a {GCR_SIZES[size]} disk; only 1.44 MB works yet."
-    if size - 84 in (FLOPPY_SIZE, *GCR_SIZES):
+    if size - 84 in FLOPPY_SIZES:
         return f"{Path(path).name} looks like a Disk Copy 4.2 image; convert it to raw first."
-    return f"{Path(path).name} is not a 1.44 MB floppy image."
+    return f"{Path(path).name} is not a 400K, 800K or 1.44 MB floppy image."
 
 
 def start_blockers(m: Machine, qemu_dir: str | None = None) -> list[str]:

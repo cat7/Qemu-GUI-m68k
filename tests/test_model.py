@@ -228,13 +228,13 @@ class Checks(unittest.TestCase):
                                ("dc42.image", 819200 + 84), ("odd.img", 1000)):
                 (d / name).write_bytes(b"\0" * size)
             self.assertIsNone(model.floppy_problem(str(d / "ok.img")))
-            self.assertIn("800K", model.floppy_problem(str(d / "gcr.img")))
+            self.assertIsNone(model.floppy_problem(str(d / "gcr.img")))
             self.assertIn("Disk Copy", model.floppy_problem(str(d / "dc42.image")))
-            self.assertIn("1.44", model.floppy_problem(str(d / "odd.img")))
+            self.assertIn("800K", model.floppy_problem(str(d / "odd.img")))
             m = model.new_machine("x", "q800")
             m.floppies[0] = Floppy(str(d / "gcr.img"))
             _e, warnings = model.validate(m, None, machine_dir=td)
-            self.assertTrue(any("800K" in w for w in warnings))
+            self.assertFalse(any("800K" in w for w in warnings))
 
     def test_start_needs_the_rom(self):
         with tempfile.TemporaryDirectory() as td:
