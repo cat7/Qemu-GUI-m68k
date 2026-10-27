@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import os
 import shlex
+import socket
+import zlib
 
-from . import paths, systems
+from . import model, paths, systems
 from .model import Machine, detect_format
 from .systems import DEFAULT_MOUSE_SPEED, ICOUNT_OPTION
 
@@ -153,18 +155,60 @@ def _floppy_args(index: int, fd, machine_dir: str, platform: str) -> list[str]:
                       f"if=floppy,index={index},format=raw{tail}"]
 
 
+def _empty_floppy_args(index: int) -> list[str]:
+    """A drive with no disk in it: the Macs only have the drives that exist
+    when they start, and a disk can go into one later (see qmp.py)."""
+    return ["-drive", f"if=floppy,index={index}"]
+
+
+# The control connection the program changes floppies through while a
+# machine runs (QMP, QEMU's machine protocol). Local only. Each machine has
+# its own port, so the command shown is the one that runs.
+QMP_PORT_BASE = 45000
+QMP_PORT_COUNT = 2000
+
+
+def qmp_port(m: Machine) -> int:
+    return QMP_PORT_BASE + zlib.crc32(m.name.encode("utf-8")) % QMP_PORT_COUNT
+
+
+def _port_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def free_qmp_port(m: Machine) -> int:
+    """The machine's own port, or the next free one if something has it."""
+    first = qmp_port(m)
+    for k in range(QMP_PORT_COUNT):
+        port = QMP_PORT_BASE + (first - QMP_PORT_BASE + k) % QMP_PORT_COUNT
+        if _port_free(port):
+            return port
+    return first
+
+
+def qmp_args(port: int) -> list[str]:
+    return ["-qmp", f"tcp:127.0.0.1:{port},server=on,wait=off"]
+
+
 def needs_sudo(m: Machine, platform: str = paths.HOST_PLATFORM) -> bool:
     """vmnet-* and low slirp forward ports run the binary under sudo (macOS only; never in a .bat)."""
     return (m.network.needs_sudo or m.network.low_host_port) and not paths.is_windows(platform)
 
 
 def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
-               platform: str = paths.HOST_PLATFORM) -> list[str]:
+               platform: str = paths.HOST_PLATFORM,
+               qmp: int | None = None) -> list[str]:
     """The complete argv, first token = absolute path of the QEMU binary.
 
     *qemu_dir* is the folder the program itself lives in (a ROM given by
     plain name, as older records do, is there); *machine_dir* is the machine's own folder (its PRAM, and any
-    relative image path)."""
+    relative image path). *qmp* is the control port (default: the machine's
+    own, :func:`qmp_port`)."""
     qd = qemu_dir
     argv: list[str] = [paths.join_path(qd, paths.qemu_binary_name(platform), platform)]
 
@@ -194,10 +238,14 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
             argv += _scsi_args(s, machine_dir, platform)
 
     if systems.machine_type(m.machine).floppy:
-        for index, fd in enumerate(m.floppies):
+        for index in range(model.FLOPPY_DRIVES):
+            fd = m.floppies[index] if index < len(m.floppies) else None
             if fd and fd.file:
                 argv += _floppy_args(index, fd, machine_dir, platform)
+            else:
+                argv += _empty_floppy_args(index)
 
+    argv += qmp_args(qmp if qmp is not None else qmp_port(m))
     argv += split_extra_args(m.extra_args, platform)
     return argv
 
@@ -303,11 +351,11 @@ def launcher_text(m: Machine, qemu_dir: str, machine_dir: str,
 
 
 def write_launcher(m: Machine, qemu_dir: str, machine_dir: str,
-                   platform: str = paths.HOST_PLATFORM):
+                   platform: str = paths.HOST_PLATFORM, qmp: int | None = None):
     """Write run.command / run.bat into the machine folder; returns (path, argv)."""
     from pathlib import Path
     import stat
-    argv = build_argv(m, qemu_dir, machine_dir, platform)
+    argv = build_argv(m, qemu_dir, machine_dir, platform, qmp)
     text = render_launcher(argv, platform, needs_sudo(m, platform), m.name)
     path = Path(machine_dir) / paths.launcher_name(platform)
     path.write_text(text, encoding="utf-8", newline="")

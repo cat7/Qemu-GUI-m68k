@@ -22,6 +22,7 @@ from .paths import Settings
 from .systems import DEFAULT_MACHINE
 from .ui_dialogs import (APP_TITLE, ask_name, confirm_delete, confirm_reset_pram,
                          open_folder)
+from .ui_floppy import FloppyPanel
 from .ui_machine import MachineEditor
 
 # The emulator's own output goes into the machine's folder.
@@ -41,8 +42,9 @@ def qemu_dir() -> str:
 
 class RunningMachine:
     def __init__(self, name: str, proc: subprocess.Popen, log_path: Path, argv: list[str], log_fh,
-                 share_server: share.ShareServer | None = None):
+                 share_server: share.ShareServer | None = None, qmp_port: int | None = None):
         self.name = name
+        self.qmp_port = qmp_port
         self.proc = proc
         self.log_path = log_path
         self.argv = argv
@@ -95,14 +97,15 @@ TERMINAL_STATUS = "Started in Terminal"
 
 
 def start_in_terminal(m: Machine, machine_dir: Path
-                      ) -> tuple[Path, share.ShareServer | None]:
+                      ) -> tuple[Path, share.ShareServer | None, int]:
     """Run the launcher in a Terminal window (macOS). Terminal is the only
     place a vmnet run can ask for the administrator password. The run cannot
     be followed from here; a shared folder stays up until the next start or
-    quit."""
+    quit. Returns the launcher, the shared folder and the control port."""
     machine_dir = Path(machine_dir)
     machine_dir.mkdir(parents=True, exist_ok=True)
-    launcher, _argv = command.write_launcher(m, qemu_dir(), str(machine_dir))
+    port = command.free_qmp_port(m)
+    launcher, _argv = command.write_launcher(m, qemu_dir(), str(machine_dir), qmp=port)
     share_server = share.start_share(m) if m.share.ftp_on else None
     try:
         subprocess.Popen(["open", "-a", "Terminal", str(launcher)], cwd=str(machine_dir))
@@ -110,7 +113,7 @@ def start_in_terminal(m: Machine, machine_dir: Path
         if share_server:
             share_server.stop()
         raise
-    return launcher, share_server
+    return launcher, share_server, port
 
 
 def start_machine(m: Machine, machine_dir: Path) -> RunningMachine:
@@ -119,7 +122,9 @@ def start_machine(m: Machine, machine_dir: Path) -> RunningMachine:
     prints in last-run.log."""
     machine_dir = Path(machine_dir)
     machine_dir.mkdir(parents=True, exist_ok=True)
-    launcher, argv = command.write_launcher(m, qemu_dir(), str(machine_dir), paths.HOST_PLATFORM)
+    port = command.free_qmp_port(m)
+    launcher, argv = command.write_launcher(m, qemu_dir(), str(machine_dir), paths.HOST_PLATFORM,
+                                            qmp=port)
     log_path = machine_dir / LOG_NAME
     log_path.write_text("# " + command.one_line(argv, str(machine_dir)) + "\n", encoding="utf-8")
     windows = paths.is_windows(paths.HOST_PLATFORM)
@@ -147,7 +152,7 @@ def start_machine(m: Machine, machine_dir: Path) -> RunningMachine:
         if log_fh:
             log_fh.close()
         raise
-    return RunningMachine(m.name, proc, log_path, argv, log_fh, share_server)
+    return RunningMachine(m.name, proc, log_path, argv, log_fh, share_server, port)
 
 
 def read_log_tail(path: Path, limit: int = LOG_TAIL_BYTES) -> str:
@@ -176,6 +181,7 @@ class MainWindow(tk.Tk):
         self.finished: dict[str, RunningMachine] = {}
         self.terminal_started: dict[str, float] = {}
         self.terminal_shares: dict[str, share.ShareServer] = {}
+        self.terminal_ports: dict[str, int] = {}
         self.title(APP_TITLE)
         self.geometry("1100x720")
         self.minsize(880, 560)
@@ -247,6 +253,8 @@ class MainWindow(tk.Tk):
         pane.add(right, weight=3)
         self.run_status = ttk.Label(right, text="", justify="left", font=("", 0, "bold"))
         self.run_status.pack(anchor="w", pady=(0, 6))
+        # packed below run_status while the selected machine runs
+        self.floppy_panel = FloppyPanel(right, self._floppy_port)
 
         head = ttk.Frame(right)
         head.pack(fill="x")
@@ -357,6 +365,7 @@ class MainWindow(tk.Tk):
         for button in self.machine_buttons:
             button.state(["disabled"] if m is None else ["!disabled"])
         if not m:
+            self._show_floppy_panel(None)
             self._set_text(self.command_line, "")
             self._set_text(self.log_text, "")
             self._show_notes(None, "")
@@ -372,6 +381,25 @@ class MainWindow(tk.Tk):
         self._show_notes(m.name, m.notes)
         self._refresh_run_status(m.name)
         self._refresh_log(m.name, force=True)
+        self._show_floppy_panel(m)
+
+    def _floppy_port(self) -> int | None:
+        """The control port of the selected machine while it runs."""
+        name = self.selected_name()
+        r = self.running.get(name) if name else None
+        if r and r.exit_code is None:
+            return r.qmp_port
+        if name in self.terminal_started:
+            return self.terminal_ports.get(name)
+        return None
+
+    def _show_floppy_panel(self, m: Machine | None):
+        if m and m.type.floppy and self._floppy_port() is not None:
+            if not self.floppy_panel.winfo_manager():
+                self.floppy_panel.pack(after=self.run_status, fill="x", pady=(0, 6))
+            self.floppy_panel.refresh()
+        else:
+            self.floppy_panel.pack_forget()
 
     def _refresh_log(self, name: str, force: bool = False):
         path = self.library.folder(name) / LOG_NAME
@@ -586,6 +614,7 @@ class MainWindow(tk.Tk):
         self.finished.pop(m.name, None)
         self.terminal_started.pop(m.name, None)
         self.refresh_list(select=m.name)
+        self.after(2000, self.floppy_panel.refresh)     # once QEMU listens
         return r
 
     def start_selected_in_terminal(self):
@@ -596,7 +625,7 @@ class MainWindow(tk.Tk):
     def _start_terminal(self, m: Machine):
         self._stop_terminal_share(m.name)
         try:
-            _launcher, share_server = start_in_terminal(m, self.library.folder(m.name))
+            _launcher, share_server, port = start_in_terminal(m, self.library.folder(m.name))
         except share.ShareError as e:
             messagebox.showerror("Start", f"The shared folder could not be started.\n\n{e}")
             return
@@ -606,6 +635,7 @@ class MainWindow(tk.Tk):
         if share_server:
             self.terminal_shares[m.name] = share_server
         self.terminal_started[m.name] = time.time()
+        self.terminal_ports[m.name] = port
         self.finished.pop(m.name, None)
         self.refresh_list(select=m.name)
 

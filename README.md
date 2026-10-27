@@ -49,6 +49,14 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   images (`if=floppy`);
   "Read only" throws changes away (`snapshot=on`). The Mac can initialize
   all of them; a two-sided (800K) format of a 400K image makes it 800K.
+  Both drives always exist, empty if no disk is chosen. While a machine
+  runs, the main window shows its floppy drives: **Insert…** puts the next
+  disk in (eject the previous one in the Mac first, by dragging it to the
+  Trash), **Eject** takes one out; "Read only" there gives the Mac a locked
+  disk. This works with every display (SDL has no menu for it) and on every
+  host, also for a run started in Terminal: each machine has a local
+  control connection (`-qmp tcp:127.0.0.1:PORT`, a port of its own between
+  45000 and 46999).
 - Monitor (`-g WxH`): the Apple monitor connected to the built-in video,
   the same five on every model: 12" RGB (512 × 384), 13" RGB/VGA
   (640 × 480), 15" Portrait (640 × 870), 16" Color (832 × 624) and 21"

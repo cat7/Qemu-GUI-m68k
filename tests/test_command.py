@@ -89,6 +89,10 @@ class UserLaunchers(unittest.TestCase):
         if "shift=6" in want:                    # the GUI keeps the clock in real time
             want[want.index("shift=6")] = "shift=6,align=on"
         want += ["-g", screen, "-audiodev", "coreaudio,id=snd"]
+        # both floppy drives exist, empty, and the control connection
+        want += ["-drive", "if=floppy,index=0", "-drive", "if=floppy,index=1",
+                 "-qmp", f"tcp:127.0.0.1:{command.qmp_port(load_fixture(fixture))},"
+                         "server=on,wait=off"]
         self.assertEqual(sorted(got), sorted(want))
 
     def test_q800(self):
@@ -252,6 +256,22 @@ class Drives(unittest.TestCase):
         drives = option(argv_for(m), "-drive")
         self.assertIn("file=/fd/Disk Tools.img,if=floppy,index=0,format=raw,snapshot=on", drives)
         self.assertIn("file=/fd/b.img,if=floppy,index=1,format=raw", drives)
+
+    def test_empty_floppy_drives_exist(self):
+        m = model.new_machine("A", "q800")
+        self.assertEqual([d for d in option(argv_for(m), "-drive") if "if=floppy" in d],
+                         ["if=floppy,index=0", "if=floppy,index=1"])
+
+    def test_control_connection(self):
+        m = model.new_machine("A", "q800")
+        port = command.qmp_port(m)
+        self.assertTrue(command.QMP_PORT_BASE <= port
+                        < command.QMP_PORT_BASE + command.QMP_PORT_COUNT)
+        self.assertEqual(option(argv_for(m), "-qmp"),
+                         [f"tcp:127.0.0.1:{port},server=on,wait=off"])
+        self.assertEqual(option(command.build_argv(m, QD, "/M/x", "darwin", 45999), "-qmp"),
+                         ["tcp:127.0.0.1:45999,server=on,wait=off"])
+        self.assertEqual(command.qmp_port(m), command.qmp_port(model.new_machine("A", "q700")))
 
     def test_second_floppy_alone_keeps_its_index(self):
         m = model.new_machine("A", "q800")

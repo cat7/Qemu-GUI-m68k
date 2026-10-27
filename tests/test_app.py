@@ -247,6 +247,7 @@ TK = _tk_available()
 class _FakeRun:
     exit_code = None
     share = None
+    qmp_port = None
 
     def poll(self):
         return None
@@ -271,7 +272,7 @@ class Windows(unittest.TestCase):
         self.saved = (paths.HOST_PLATFORM, ui_main.start_in_terminal, ui_main.start_machine)
         self.calls: list[str] = []
         ui_main.start_in_terminal = lambda m, d: (self.calls.append("terminal"),
-                                                  (Path(d) / "run.command", None))[1]
+                                                  (Path(d) / "run.command", None, 1))[1]
         ui_main.start_machine = lambda m, d: (self.calls.append("direct"), _FakeRun())[1]
         self.w = ui_main.MainWindow(paths.Settings(), settings_path=self.dir / "settings.json")
         self.w.withdraw()
@@ -310,6 +311,28 @@ class Windows(unittest.TestCase):
         self.assertIn("Q8", self.w.running)
         self.assertTrue(self.w.run_status.cget("text").startswith("Running"))
         self.assertFalse(self.w.stop_button.instate(["disabled"]))
+
+    def test_floppy_panel_while_running(self):
+        from fake_qmp import FakeQMP
+        q = FakeQMP()
+        try:
+            self.add("Q8", "q800")
+            self.assertEqual(self.w.floppy_panel.winfo_manager(), "")
+            run = _FakeRun()
+            run.qmp_port = q.port
+            self.w.running["Q8"] = run
+            self.w.refresh_details()
+            self.assertEqual(self.w.floppy_panel.winfo_manager(), "pack")
+            self.assertEqual([v.get() for v in self.w.floppy_panel.files],
+                             ["(empty)", "(empty)"])
+            q.drives["floppy0"] = {"file": "/fd/Install 1.img"}
+            self.w.floppy_panel.refresh()
+            self.assertEqual(self.w.floppy_panel.files[0].get(), "Install 1.img")
+            del self.w.running["Q8"]
+            self.w.refresh_details()
+            self.assertEqual(self.w.floppy_panel.winfo_manager(), "")
+        finally:
+            q.close()
 
     def test_vmnet_goes_to_terminal(self):
         paths.HOST_PLATFORM = "darwin"
