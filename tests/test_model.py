@@ -225,10 +225,12 @@ class Checks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
             for name, size in (("ok.img", 1474560), ("gcr.img", 819200),
+                               ("dos.img", 737280),
                                ("dc42.image", 819200 + 84), ("odd.img", 1000)):
                 (d / name).write_bytes(b"\0" * size)
             self.assertIsNone(model.floppy_problem(str(d / "ok.img")))
             self.assertIsNone(model.floppy_problem(str(d / "gcr.img")))
+            self.assertIsNone(model.floppy_problem(str(d / "dos.img")))
             self.assertIn("Disk Copy", model.floppy_problem(str(d / "dc42.image")))
             self.assertIn("800K", model.floppy_problem(str(d / "odd.img")))
             m = model.new_machine("x", "q800")

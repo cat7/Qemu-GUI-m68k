@@ -45,7 +45,8 @@ folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
   (the older CD's driver takes over both drives); this happens on one bus
   too.
   New blank disks are made with `qemu-img`.
-- Two floppy drives, raw 400K, 800K and 1.44 MB images (`if=floppy`);
+- Two floppy drives, raw 400K, 800K, 720K (DOS, needs PC Exchange) and 1.44 MB
+  images (`if=floppy`);
   "Read only" throws changes away (`snapshot=on`). The Mac can initialize
   all of them; a two-sided (800K) format of a 400K image makes it 800K.
 - Monitor (`-g WxH`): the Apple monitor connected to the built-in video,

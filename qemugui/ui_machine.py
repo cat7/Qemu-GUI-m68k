@@ -473,7 +473,7 @@ class MachineEditor(tk.Toplevel):
         self.floppy_rows = [FloppyRow(fd, i, i, fallback=self.machine_folder)
                             for i in range(model.FLOPPY_DRIVES)]
         r += 1
-        ttk.Label(f, text="Raw 400K, 800K and 1.44 MB images.",
+        ttk.Label(f, text="Raw 400K, 800K, 720K and 1.44 MB images.",
                   foreground=GREY).grid(row=r, column=0, sticky="w", padx=4, pady=(6, 0))
         r += 1
         ttk.Label(f, text="Start-up order: 1. bootable floppy, 2. CD-ROM with highest SCSI "
