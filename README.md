@@ -15,7 +15,7 @@ floppy and SCSI support this launcher relies on, come from the `q700`
 branch of https://github.com/cat7/m68k-rom (its README lists what that
 branch adds). Build `qemu-system-m68k` from that branch and put this
 launcher next to it. With an upstream build only the Quadra 800 works,
-and floppies other than 1.44 MB may not.
+and its floppy drives may not work.
 
 ## What it sets up
 
