@@ -450,11 +450,32 @@ class HostDisk(unittest.TestCase):
         m.pds = "nubus-ethernet"
         self.assertTrue(option(argv_for(m), "-fsdev"))
 
-    def test_left_out_where_it_cannot_work(self):
+    def test_lc475_ethernet_card_carries_it(self):
         m = self.host("lc475")
         m.pds = "ethernet"
-        self.assertEqual(option(argv_for(m), "-fsdev"), [])
-        self.assertTrue(option(argv_for(self.host("lc475")), "-fsdev"))
+        argv = argv_for(m)
+        devices = option(argv, "-device")
+        self.assertTrue(option(argv, "-fsdev"))
+        self.assertFalse([d for d in devices if d.startswith("nubus-virtio-mmio")])
+        self.assertFalse([d for d in devices if d.startswith("mac-pds-ethernet,")])
+        card = [d for d in devices if d.startswith("mac-pds-ethernet-virtio,")]
+        self.assertEqual(len(card), 1)
+        self.assertIn("declrom-pds", card[0])
+        # the virtio devices exist only once the card is there
+        self.assertLess(devices.index(card[0]),
+                        [i for i, d in enumerate(devices) if d.startswith("virtio-9p")][0])
+
+    def test_lc475_ethernet_card_without_the_disk(self):
+        m = self.host("lc475")
+        m.pds = "ethernet"
+        m.share.volume = False
+        devices = option(argv_for(m), "-device")
+        self.assertTrue([d for d in devices if d.startswith("mac-pds-ethernet,")])
+        self.assertFalse([d for d in devices if "virtio" in d])
+
+    def test_lc475_alone(self):
+        devices = option(argv_for(self.host("lc475")), "-device")
+        self.assertTrue([d for d in devices if d.startswith("nubus-virtio-mmio,")])
 
     def test_off(self):
         m = self.host()

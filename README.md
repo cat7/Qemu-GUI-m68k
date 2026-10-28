@@ -102,8 +102,9 @@ and its floppy drives may not work.
   next to `qemu-system-m68k`, built from
   https://github.com/cat7/classicvirtio (`make classic`). It works with
   32-bit addressing on or off; in 24-bit mode the driver takes about
-  0.5 MB at the top of the Mac's memory. On the LC 475 the card takes the
-  PDS slot, so not together with the Ethernet card.
+  0.5 MB at the top of the Mac's memory. The LC 475 has only its PDS
+  slot: with the Ethernet card in it, that card carries the shared folder
+  too (`-device mac-pds-ethernet-virtio`, with the ROM `declrom-pds`).
 
 The main window shows the command line, copies it as one line, starts the
 machine (its output shown from `last-run.log`) and stops it. "Start in

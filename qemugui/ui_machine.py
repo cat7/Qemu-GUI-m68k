@@ -622,9 +622,6 @@ class MachineEditor(tk.Toplevel):
             note = ("The folder appears in the Finder as a disk, read and write, with "
                     "file types and resource forks. In 24-bit mode it takes about "
                     "0.5 MB of the Mac's memory.")
-            if t.slot_kind == "PDS" and t.pds_cards:
-                note += (f" It uses the {t.slot_kind} slot, so the {t.label} cannot "
-                         "have the Ethernet card at the same time.")
         self.share_volume_note.config(text=note)
 
     def _choose_share_folder(self):

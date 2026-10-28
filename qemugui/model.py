@@ -292,6 +292,8 @@ SHARE_VOLUME_MAX = 27            # an HFS volume name
 # classicvirtio's declaration ROM for the host folder disk, next to the
 # emulator (built from github.com/cat7/classicvirtio, "make classic")
 DECLROM_NAME = "declrom"
+# and the one for the LC PDS card that has Ethernet as well ("declrom-pds")
+DECLROM_PDS_NAME = "declrom-pds"
 
 
 @dataclass
@@ -607,7 +609,7 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
                           "characters (A-Z, digits, punctuation), without a colon.")
         if not t.host_disk:
             errors.append(f"The {t.label} cannot show the shared folder as a disk.")
-        elif t.slot_kind == "PDS" and m.pds:
+        elif t.slot_kind == "PDS" and m.pds and not combined_card(m):
             errors.append(f"The shared folder disk needs the {t.label}'s {t.slot_kind} "
                           "slot: take the card out of it (Machine tab), or turn the disk off.")
 
@@ -634,8 +636,9 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
             if not Path(rom).is_file():
                 warnings.append(f"The Mac's ROM is missing: {rom}")
         if qd and paths.has_qemu(qd, platform) and share.volume_on:
-            if not Path(paths.join_path(qd, DECLROM_NAME, platform)).is_file():
-                warnings.append(f"The shared folder disk needs the file {DECLROM_NAME} "
+            rom_name = host_disk_rom_name(m)
+            if not Path(paths.join_path(qd, rom_name, platform)).is_file():
+                warnings.append(f"The shared folder disk needs the file {rom_name} "
                                 "next to the emulator; it is missing.")
         for label, f in _image_files(m):
             if not f:
@@ -893,3 +896,19 @@ def _repoint_images(m: Machine, moved: list[tuple[Path, Path]]) -> None:
         if fd:
             fd.file = fixed(fd.file)
     m.pram = fixed(m.pram)
+
+
+def combined_card(m: "Machine") -> "systems.PdsCard | None":
+    """The card in a single PDS slot that carries the shared folder disk as
+    well (the LC 475's Ethernet card), when the disk is on."""
+    t = m.type
+    card = systems.pds_card(m.pds)
+    if (m.share.volume_on and t.host_disk and t.slot_kind == "PDS" and card
+            and card.id in t.pds_cards and card.host_disk_device):
+        return card
+    return None
+
+
+def host_disk_rom_name(m: "Machine") -> str:
+    """The classicvirtio declaration ROM the shared folder disk needs."""
+    return DECLROM_PDS_NAME if combined_card(m) else DECLROM_NAME

@@ -87,7 +87,7 @@ class MachineType:
     scsi_buses: int = 1          # 2: also an external SCSI bus (SCSI_BUSES)
     # The shared folder as a disk (classicvirtio's NuBus card, in 24-bit
     # and 32-bit mode). It takes a slot: on a model with a single PDS slot
-    # not together with a card there.
+    # a card there has to carry it too (PdsCard.host_disk_device).
     host_disk: bool = False
 
     @property
@@ -147,10 +147,14 @@ class PdsCard:
     label: str
     device: str                  # the QEMU device name
     nic: bool                    # takes the Network settings
+    # The same card with classicvirtio's virtio devices on it as well, for
+    # the shared folder disk on a model whose only slot it takes
+    host_disk_device: str = ""
 
 
 PDS_CARDS: dict[str, PdsCard] = {
-    "ethernet": PdsCard("ethernet", "Ethernet card (SONIC)", "mac-pds-ethernet", nic=True),
+    "ethernet": PdsCard("ethernet", "Ethernet card (SONIC)", "mac-pds-ethernet", nic=True,
+                        host_disk_device="mac-pds-ethernet-virtio"),
     "nubus-ethernet": PdsCard("nubus-ethernet", "Ethernet NB card (SONIC)", "nubus-ethernet",
                               nic=True),
 }

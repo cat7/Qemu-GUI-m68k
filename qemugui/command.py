@@ -98,24 +98,29 @@ def nic_option(net) -> str:
     raise ValueError(f"unknown network mode {net.mode!r}")
 
 
-def network_args(m: Machine) -> list[str]:
+def network_args(m: Machine, qemu_dir: str = "", platform: str = paths.HOST_PLATFORM) -> list[str]:
     """-nic for the built-in Ethernet; a card in the PDS or NuBus slot is a -device,
-    with a -netdev behind it when the network is on."""
+    with a -netdev behind it when the network is on. On the LC 475 with the
+    shared folder disk on, its Ethernet card carries the virtio devices too."""
     card = systems.pds_card(m.pds)
     if card is None or card.id not in m.type.pds_cards:
         if m.type.onboard_nic:
             return ["-nic", nic_option(m.network)]
         return ["-nic", "none"]
+    device = card.device
+    if model.combined_card(m):
+        rom = paths.join_path(qemu_dir, model.DECLROM_PDS_NAME, platform)
+        device = f"{card.host_disk_device},romfile={qopt(rom)}"
     args = []
     if not m.type.onboard_nic:
         args += ["-nic", "none"]
     if card.nic and m.network.mode != "none":
         args += ["-netdev", f"{_backend(m.network)},id={NETDEV_ID}",
-                 "-device", f"{card.device},netdev={NETDEV_ID},mac={m.network.mac}"]
+                 "-device", f"{device},netdev={NETDEV_ID},mac={m.network.mac}"]
     elif card.nic:
-        args += ["-device", f"{card.device},mac={m.network.mac}"]
+        args += ["-device", f"{device},mac={m.network.mac}"]
     else:
-        args += ["-device", card.device]
+        args += ["-device", device]
     return args
 
 
@@ -230,7 +235,7 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
     argv += ["-g", m.screen]
     argv += ["-display", display_option(m)]
     argv += ["-audiodev", f"{audio},id={AUDIODEV_ID}"]
-    argv += network_args(m)
+    argv += network_args(m, qd, platform)
 
     buses = systems.machine_type(m.machine).scsi_buses
     for s in sorted(m.scsi, key=lambda x: (x.bus, x.id)):
@@ -259,20 +264,26 @@ NINEP_FSDEV = "hostshare"
 def host_disk_on(m: Machine) -> bool:
     """The shared folder goes in as a disk (and the machine can take it)."""
     t = m.type
-    return m.share.volume_on and t.host_disk and not (t.slot_kind == "PDS" and m.pds)
+    if not (m.share.volume_on and t.host_disk):
+        return False
+    return not (t.slot_kind == "PDS" and m.pds) or model.combined_card(m) is not None
 
 
 def host_disk_args(m: Machine, qemu_dir: str, platform: str) -> list[str]:
     """The shared folder as a Mac disk: classicvirtio's NuBus card (QEMU
     puts it in the first free slot) with a virtio-9p device on it. Mac OS
-    gets file types and resource forks through macos_compat."""
+    gets file types and resource forks through macos_compat. On the LC 475
+    with its Ethernet card the virtio devices are on that card instead
+    (network_args)."""
     folder = os.path.expanduser(m.share.folder.strip())
-    rom = paths.join_path(qemu_dir, model.DECLROM_NAME, platform)
-    return ["-device", f"nubus-virtio-mmio,romfile={qopt(rom)}",
-            "-device", f"virtio-9p-device,fsdev={NINEP_FSDEV},"
-                       f"mount_tag={qopt(m.share.volume_name.strip())}",
-            "-fsdev", f"local,id={NINEP_FSDEV},path={qopt(folder)},"
-                      "security_model=none,macos_compat=on"]
+    card = []
+    if not model.combined_card(m):
+        rom = paths.join_path(qemu_dir, model.DECLROM_NAME, platform)
+        card = ["-device", f"nubus-virtio-mmio,romfile={qopt(rom)}"]
+    return card + ["-device", f"virtio-9p-device,fsdev={NINEP_FSDEV},"
+                              f"mount_tag={qopt(m.share.volume_name.strip())}",
+                   "-fsdev", f"local,id={NINEP_FSDEV},path={qopt(folder)},"
+                             "security_model=none,macos_compat=on"]
 
 
 def group_options(argv: list[str]) -> list[list[str]]:

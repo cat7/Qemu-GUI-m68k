@@ -476,12 +476,14 @@ class HostDiskChecks(unittest.TestCase):
         m.share = Share("/tmp", volume=True)
         self.assertEqual(model.validate(m, None, check_files=False)[0], [])
 
-    def test_lc475_has_one_slot(self):
+    def test_lc475_ethernet_card_carries_it(self):
         m = model.new_machine("x", "lc475")
         m.pds = "ethernet"
         m.share = Share("/tmp", volume=True)
-        self.assertTrue([e for e in model.validate(m, None, check_files=False)[0]
-                         if "slot" in e])
+        self.assertEqual(model.validate(m, None, check_files=False)[0], [])
+        self.assertEqual(model.host_disk_rom_name(m), "declrom-pds")
+        m.pds = ""
+        self.assertEqual(model.host_disk_rom_name(m), "declrom")
 
     def test_disk_name(self):
         self.assertTrue(self.errors(volume_name=""))
