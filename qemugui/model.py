@@ -287,6 +287,11 @@ def default_audio_label(platform: str = paths.HOST_PLATFORM) -> str:
 
 SHARE_SCOPES = ("guest-only", "all-interfaces")
 SHARE_DEFAULT_USER = "guest"
+SHARE_DEFAULT_VOLUME = "Host"
+SHARE_VOLUME_MAX = 27            # an HFS volume name
+# classicvirtio's declaration ROM for the host folder disk, next to the
+# emulator (built from github.com/cat7/classicvirtio, "make classic")
+DECLROM_NAME = "declrom"
 
 
 @dataclass
@@ -296,10 +301,13 @@ class Share:
     password: str = ""
     scope: str = "guest-only"    # guest-only | all-interfaces
     ftp: bool = False            # serve the folder over FTP
+    volume: bool = False         # attach it as a disk (virtio-9p)
+    volume_name: str = SHARE_DEFAULT_VOLUME
 
     def to_dict(self) -> dict:
         return {"folder": self.folder, "user": self.user, "password": self.password,
-                "scope": self.scope, "ftp": self.ftp}
+                "scope": self.scope, "ftp": self.ftp, "volume": self.volume,
+                "volume_name": self.volume_name}
 
     @classmethod
     def from_dict(cls, d: Any) -> "Share":
@@ -309,7 +317,9 @@ class Share:
                    str(d.get("user", SHARE_DEFAULT_USER) or SHARE_DEFAULT_USER),
                    str(d.get("password", "") or ""),
                    str(d.get("scope", "guest-only") or "guest-only"),
-                   bool(d.get("ftp", False)))
+                   bool(d.get("ftp", False)),
+                   bool(d.get("volume", False)),
+                   str(d.get("volume_name", SHARE_DEFAULT_VOLUME) or SHARE_DEFAULT_VOLUME))
 
     @property
     def enabled(self) -> bool:
@@ -318,6 +328,10 @@ class Share:
     @property
     def ftp_on(self) -> bool:
         return self.enabled and self.ftp
+
+    @property
+    def volume_on(self) -> bool:
+        return self.enabled and self.volume
 
 
 def _mouse_speed(v) -> int:
@@ -585,6 +599,17 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
             errors.append("Sharing on all interfaces needs a password.")
         if share.scope == "guest-only" and net.mode != "user":
             warnings.append("Guest only sharing is only reachable with default (slirp).")
+    if share.volume_on:
+        name = share.volume_name.strip()
+        if (not name or len(name) > SHARE_VOLUME_MAX or ":" in name
+                or not all(" " <= c <= "~" for c in name)):
+            errors.append(f"The disk name has to be 1 to {SHARE_VOLUME_MAX} plain "
+                          "characters (A-Z, digits, punctuation), without a colon.")
+        if not t.host_disk:
+            errors.append(f"The {t.label} cannot show the shared folder as a disk.")
+        elif t.pds_cards and m.pds:
+            errors.append(f"The shared folder disk needs the {t.label}'s {t.slot_kind} "
+                          "slot: take the card out of it (Machine tab), or turn the disk off.")
 
     seen_ids = set()
     for s in m.scsi:
@@ -608,6 +633,10 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
             rom = paths.join_path(qd, m.rom, platform)
             if not Path(rom).is_file():
                 warnings.append(f"The Mac's ROM is missing: {rom}")
+        if qd and paths.has_qemu(qd, platform) and share.volume_on:
+            if not Path(paths.join_path(qd, DECLROM_NAME, platform)).is_file():
+                warnings.append(f"The shared folder disk needs the file {DECLROM_NAME} "
+                                "next to the emulator; it is missing.")
         for label, f in _image_files(m):
             if not f:
                 continue

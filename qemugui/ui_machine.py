@@ -593,12 +593,41 @@ class MachineEditor(tk.Toplevel):
                   foreground=GREY).grid(row=8, column=0, columnspan=3, sticky="w")
         ttk.Label(f, text="Use an FTP program such as Fetch or Anarchie",
                   foreground=GREY).grid(row=9, column=0, columnspan=3, sticky="w")
+
+        self.share_volume = tk.BooleanVar(value=False)
+        self.share_volume_cb = ttk.Checkbutton(
+            f, text="Disk on the Mac's desktop (virtio-9p)", variable=self.share_volume,
+            command=self._share_changed)
+        self.share_volume_cb.grid(row=10, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        ttk.Label(f, text="Disk name:").grid(row=11, column=0, sticky="w", pady=4)
+        self.share_volume_var = tk.StringVar(value=model.SHARE_DEFAULT_VOLUME)
+        self.share_volume_entry = ttk.Entry(f, textvariable=self.share_volume_var, width=20)
+        self.share_volume_entry.grid(row=11, column=1, sticky="w", pady=4)
+        self.share_volume_note = ttk.Label(f, text="", foreground=GREY,
+                                           wraplength=EDITOR_WIDTH - 60, justify="left")
+        self.share_volume_note.grid(row=12, column=0, columnspan=3, sticky="w")
         self._share_changed()
 
     def _share_changed(self):
         ftp = "normal" if self.share_ftp.get() else "disabled"
         for w in (self.share_user_entry, self.share_password_entry, *self.share_scope_rbs):
             w.config(state=ftp)
+        t = machine_type(getattr(self, "shown_type", None) or self.machine_id)
+        self.share_volume_cb.config(state="normal" if t.host_disk else "disabled")
+        on = t.host_disk and self.share_volume.get()
+        self.share_volume_entry.config(state="normal" if on else "disabled")
+        if not t.host_disk:
+            note = (f"Not on the {t.label}: its ROM starts NuBus cards in 24-bit mode, "
+                    "and this disk needs 32-bit addressing. Use FTP.")
+        else:
+            note = ("The folder appears in the Finder as a disk, read and write, with "
+                    "file types and resource forks. Turn on 32-bit addressing in the "
+                    "Memory control panel first; in 24-bit mode the disk does not "
+                    "appear.")
+            if t.pds_cards:
+                note += (f" It uses the {t.slot_kind} slot, so the {t.label} cannot "
+                         "have the Ethernet card at the same time.")
+        self.share_volume_note.config(text=note)
 
     def _choose_share_folder(self):
         start = paths.browse_start_dir(self.share_folder_var.get(), None)
@@ -645,6 +674,8 @@ class MachineEditor(tk.Toplevel):
         if systems.pds_by_label(self.pds_var.get()) not in t.pds_cards:
             self.pds_var.set(systems.PDS_EMPTY_LABEL)
         self._update_net_hint()
+        if hasattr(self, "share_volume_cb"):
+            self._share_changed()
 
     def _set_pds(self, card_id: str):
         card = systems.pds_card(card_id)
@@ -727,6 +758,8 @@ class MachineEditor(tk.Toplevel):
         self.share_password_var.set(m.share.password)
         self.share_scope.set(m.share.scope)
         self.share_ftp.set(m.share.ftp)
+        self.share_volume.set(m.share.volume)
+        self.share_volume_var.set(m.share.volume_name)
         self._share_changed()
         self.extra_var.set(m.extra_args)
 
@@ -760,7 +793,8 @@ class MachineEditor(tk.Toplevel):
         m.easc = self.easc_var.get()
         m.share = Share(self.share_folder_var.get().strip(), self.share_user_var.get().strip(),
                         self.share_password_var.get(), self.share_scope.get(),
-                        self.share_ftp.get())
+                        self.share_ftp.get(), self.share_volume.get(),
+                        self.share_volume_var.get().strip() or model.SHARE_DEFAULT_VOLUME)
         m.extra_args = self.extra_var.get().strip()
         return m
 

@@ -245,9 +245,34 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
             else:
                 argv += _empty_floppy_args(index)
 
+    if host_disk_on(m):
+        argv += host_disk_args(m, qd, platform)
+
     argv += qmp_args(qmp if qmp is not None else qmp_port(m))
     argv += split_extra_args(m.extra_args, platform)
     return argv
+
+
+NINEP_FSDEV = "hostshare"
+
+
+def host_disk_on(m: Machine) -> bool:
+    """The shared folder goes in as a disk (and the machine can take it)."""
+    t = m.type
+    return m.share.volume_on and t.host_disk and not (t.pds_cards and m.pds)
+
+
+def host_disk_args(m: Machine, qemu_dir: str, platform: str) -> list[str]:
+    """The shared folder as a Mac disk: classicvirtio's NuBus card (QEMU
+    puts it in the first free slot) with a virtio-9p device on it. Mac OS
+    gets file types and resource forks through macos_compat."""
+    folder = os.path.expanduser(m.share.folder.strip())
+    rom = paths.join_path(qemu_dir, model.DECLROM_NAME, platform)
+    return ["-device", f"nubus-virtio-mmio,romfile={qopt(rom)}",
+            "-device", f"virtio-9p-device,fsdev={NINEP_FSDEV},"
+                       f"mount_tag={qopt(m.share.volume_name.strip())}",
+            "-fsdev", f"local,id={NINEP_FSDEV},path={qopt(folder)},"
+                      "security_model=none,macos_compat=on"]
 
 
 def group_options(argv: list[str]) -> list[list[str]]:

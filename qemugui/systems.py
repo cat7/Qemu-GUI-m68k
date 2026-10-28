@@ -85,6 +85,10 @@ class MachineType:
     pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its expansion slot takes
     slot_kind: str = "PDS"       # what that slot is: "PDS" or "NuBus"
     scsi_buses: int = 1          # 2: also an external SCSI bus (SCSI_BUSES)
+    # The shared folder as a disk (classicvirtio's NuBus card). Its code
+    # runs from the card at 32-bit addresses, and the Mac II family ROMs
+    # start cards in 24-bit mode, so only the 68040 models.
+    host_disk: bool = False
 
     @property
     def screens(self) -> tuple[Screen, ...]:
@@ -94,20 +98,20 @@ class MachineType:
 MACHINES: dict[str, MachineType] = {
     "q800": MachineType("q800", "Macintosh Quadra 800", 128, 136,
                         (8, 16, 32, 64, 128, 136), "832x624",
-                        icount=False, easc=True),
+                        icount=False, easc=True, host_disk=True),
     "q700": MachineType("q700", "Macintosh Quadra 700", 64, 68,
                         (8, 16, 20, 32, 64, 68), "832x624",
-                        icount=True, easc=False),
+                        icount=True, easc=False, host_disk=True),
     "q900": MachineType("q900", "Macintosh Quadra 900", 64, 256,
                         (8, 16, 20, 32, 64, 128, 256), "832x624",
                         icount=True, easc=False,
-                        scsi_buses=2),
+                        scsi_buses=2, host_disk=True),
     # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
     # 36 MB of QEMU's flat RAM, so 32 for now
     "lc475": MachineType("lc475", "Macintosh LC 475", 32, 32,
                          (4, 8, 16, 32), "640x480",
                          icount=False, easc=True, onboard_nic=False,
-                         pds_cards=("ethernet",)),
+                         pds_cards=("ethernet",), host_disk=True),
     # 1 MB SIMMs, as Apple shipped it. 800K floppies, and 1.4 MB ones
     # with the Mac IIx ROM (the FDHD upgrade). The Mac II family has no
     # built-in Ethernet; it takes the Ethernet NB card in a NuBus slot.

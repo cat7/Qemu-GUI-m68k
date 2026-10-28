@@ -46,7 +46,8 @@ class ShareRecord(unittest.TestCase):
         d = json.loads(m.to_json())
         self.assertEqual(d["share"], {"folder": "/shared/folder", "user": "mac",
                                       "password": "secret", "scope": "all-interfaces",
-                                      "ftp": False})
+                                      "ftp": False, "volume": False,
+                                      "volume_name": "Host"})
         self.assertEqual(Machine.from_json(m.to_json()), m)
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "machine.json"

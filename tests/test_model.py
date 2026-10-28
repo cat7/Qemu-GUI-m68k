@@ -122,7 +122,7 @@ class Record(unittest.TestCase):
         m.network.mode = "vmnet-bridged"
         m.network.ifname = "en1"
         m.network.hostfwd = [HostFwd("udp", "5000", "5001")]
-        m.share = Share("/tmp", "u", "p", "all-interfaces", True)
+        m.share = Share("/tmp", "u", "p", "all-interfaces", True, True, "Shared")
         m.extra_args = "-serial stdio"
         m.notes = "notes"
         self.assertEqual(Machine.from_json(m.to_json()), m)
@@ -459,6 +459,46 @@ class PdsSlot(unittest.TestCase):
         self.assertEqual(m.pds, "nubus-ethernet")
         model.apply_machine_type(m, "lc475")
         self.assertEqual(m.pds, "")
+
+class HostDiskChecks(unittest.TestCase):
+    def errors(self, mid="q900", **kw):
+        m = model.new_machine("x", mid)
+        m.share = Share("/tmp", volume=True, **kw)
+        return model.validate(m, None, check_files=False)[0]
+
+    def test_quadras_and_lc475(self):
+        for mid in ("q700", "q800", "q900", "lc475"):
+            self.assertEqual(self.errors(mid), [], mid)
+
+    def test_not_the_mac_ii_family(self):
+        for mid in ("macii", "maciix", "maciicx", "maciifx"):
+            self.assertTrue([e for e in self.errors(mid) if "as a disk" in e], mid)
+
+    def test_lc475_has_one_slot(self):
+        m = model.new_machine("x", "lc475")
+        m.pds = "ethernet"
+        m.share = Share("/tmp", volume=True)
+        self.assertTrue([e for e in model.validate(m, None, check_files=False)[0]
+                         if "slot" in e])
+
+    def test_disk_name(self):
+        self.assertTrue(self.errors(volume_name=""))
+        self.assertTrue(self.errors(volume_name="x" * 28))
+        self.assertTrue(self.errors(volume_name="a:b"))
+        self.assertTrue(self.errors(volume_name="Café"))
+        self.assertEqual(self.errors(volume_name="My Share 2"), [])
+
+    def test_missing_declrom_is_a_warning(self):
+        with tempfile.TemporaryDirectory() as qd:
+            Path(qd, "qemu-system-m68k").write_text("")
+            m = model.new_machine("x", "q900")
+            m.share = Share("/tmp", volume=True)
+            w = model.validate(m, qd, platform="darwin")[1]
+            self.assertTrue([x for x in w if "declrom" in x])
+            Path(qd, "declrom").write_text("")
+            w = model.validate(m, qd, platform="darwin")[1]
+            self.assertFalse([x for x in w if "declrom" in x])
+
 
 if __name__ == "__main__":
     unittest.main()

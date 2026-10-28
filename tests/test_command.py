@@ -426,5 +426,38 @@ class ExtraArgsAndWindows(unittest.TestCase):
         self.assertFalse(body[-1].endswith("^"))
 
 
+class HostDisk(unittest.TestCase):
+    def host(self, mid="q700", **kw):
+        m = model.new_machine("A", mid)
+        m.share = model.Share("/Users/me/Mac Share", ftp=False, volume=True, **kw)
+        return m
+
+    def test_card_device_and_folder(self):
+        argv = argv_for(self.host())
+        self.assertIn(f"nubus-virtio-mmio,romfile={QD}/declrom", option(argv, "-device"))
+        self.assertIn("virtio-9p-device,fsdev=hostshare,mount_tag=Host", option(argv, "-device"))
+        self.assertEqual(option(argv, "-fsdev"),
+                         ["local,id=hostshare,path=/Users/me/Mac Share,"
+                          "security_model=none,macos_compat=on"])
+
+    def test_disk_name(self):
+        argv = argv_for(self.host(volume_name="Shared, too"))
+        self.assertIn("virtio-9p-device,fsdev=hostshare,mount_tag=Shared,, too",
+                      option(argv, "-device"))
+
+    def test_left_out_where_it_cannot_work(self):
+        self.assertEqual(option(argv_for(self.host("maciicx")), "-fsdev"), [])
+        m = self.host("lc475")
+        m.pds = "ethernet"
+        self.assertEqual(option(argv_for(m), "-fsdev"), [])
+        self.assertTrue(option(argv_for(self.host("lc475")), "-fsdev"))
+
+    def test_off(self):
+        m = self.host()
+        m.share.volume = False
+        self.assertEqual(option(argv_for(m), "-fsdev"), [])
+        self.assertFalse([d for d in option(argv_for(m), "-device") if "virtio" in d])
+
+
 if __name__ == "__main__":
     unittest.main()
