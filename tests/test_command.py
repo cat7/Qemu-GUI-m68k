@@ -445,8 +445,12 @@ class HostDisk(unittest.TestCase):
         self.assertIn("virtio-9p-device,fsdev=hostshare,mount_tag=Shared,, too",
                       option(argv, "-device"))
 
+    def test_mac_ii_family_with_ethernet_card(self):
+        m = self.host("maciicx")
+        m.pds = "nubus-ethernet"
+        self.assertTrue(option(argv_for(m), "-fsdev"))
+
     def test_left_out_where_it_cannot_work(self):
-        self.assertEqual(option(argv_for(self.host("maciicx")), "-fsdev"), [])
         m = self.host("lc475")
         m.pds = "ethernet"
         self.assertEqual(option(argv_for(m), "-fsdev"), [])

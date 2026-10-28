@@ -617,14 +617,12 @@ class MachineEditor(tk.Toplevel):
         on = t.host_disk and self.share_volume.get()
         self.share_volume_entry.config(state="normal" if on else "disabled")
         if not t.host_disk:
-            note = (f"Not on the {t.label}: its ROM starts NuBus cards in 24-bit mode, "
-                    "and this disk needs 32-bit addressing. Use FTP.")
+            note = f"Not on the {t.label}. Use FTP."
         else:
             note = ("The folder appears in the Finder as a disk, read and write, with "
-                    "file types and resource forks. Turn on 32-bit addressing in the "
-                    "Memory control panel first; in 24-bit mode the disk does not "
-                    "appear.")
-            if t.pds_cards:
+                    "file types and resource forks. In 24-bit mode it takes about "
+                    "0.5 MB of the Mac's memory.")
+            if t.slot_kind == "PDS" and t.pds_cards:
                 note += (f" It uses the {t.slot_kind} slot, so the {t.label} cannot "
                          "have the Ethernet card at the same time.")
         self.share_volume_note.config(text=note)

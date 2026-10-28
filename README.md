@@ -94,17 +94,16 @@ and its floppy drives may not work.
 - Shared folder over FTP (pyftpdlib): with slirp the Mac reaches it at
   `ftp://10.0.2.2/` (`:2121` when port 21 is taken), passive mode, names in
   Mac Roman.
-- Shared folder as a disk (Quadra 700, 800, 900 and LC 475): the folder
-  appears in the Finder, read and write, with file types and resource
-  forks. It uses classicvirtio's NuBus card (`-device nubus-virtio-mmio`,
-  in the first free slot) with `virtio-9p-device` and
+- Shared folder as a disk (every model): the folder appears in the
+  Finder, read and write, with file types and resource forks. It uses
+  classicvirtio's NuBus card (`-device nubus-virtio-mmio`, in the first
+  free slot) with `virtio-9p-device` and
   `-fsdev local,...,macos_compat=on`; the card's ROM is the file `declrom`
   next to `qemu-system-m68k`, built from
-  https://github.com/cat7/classicvirtio (`make classic`). Mac OS needs
-  32-bit addressing on (Memory control panel); in 24-bit mode the disk
-  does not appear. On the LC 475 the card takes the PDS slot, so not
-  together with the Ethernet card. The Mac II family ROMs start cards in
-  24-bit mode, so these machines cannot use it.
+  https://github.com/cat7/classicvirtio (`make classic`). It works with
+  32-bit addressing on or off; in 24-bit mode the driver takes about
+  0.5 MB at the top of the Mac's memory. On the LC 475 the card takes the
+  PDS slot, so not together with the Ethernet card.
 
 The main window shows the command line, copies it as one line, starts the
 machine (its output shown from `last-run.log`) and stops it. "Start in

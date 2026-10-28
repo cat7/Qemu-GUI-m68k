@@ -607,7 +607,7 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
                           "characters (A-Z, digits, punctuation), without a colon.")
         if not t.host_disk:
             errors.append(f"The {t.label} cannot show the shared folder as a disk.")
-        elif t.pds_cards and m.pds:
+        elif t.slot_kind == "PDS" and m.pds:
             errors.append(f"The shared folder disk needs the {t.label}'s {t.slot_kind} "
                           "slot: take the card out of it (Machine tab), or turn the disk off.")
 

@@ -466,13 +466,15 @@ class HostDiskChecks(unittest.TestCase):
         m.share = Share("/tmp", volume=True, **kw)
         return model.validate(m, None, check_files=False)[0]
 
-    def test_quadras_and_lc475(self):
-        for mid in ("q700", "q800", "q900", "lc475"):
+    def test_every_model(self):
+        for mid in ("q700", "q800", "q900", "lc475", "macii", "maciix", "maciicx", "maciifx"):
             self.assertEqual(self.errors(mid), [], mid)
 
-    def test_not_the_mac_ii_family(self):
-        for mid in ("macii", "maciix", "maciicx", "maciifx"):
-            self.assertTrue([e for e in self.errors(mid) if "as a disk" in e], mid)
+    def test_mac_ii_family_keeps_its_ethernet_card(self):
+        m = model.new_machine("x", "maciifx")
+        m.pds = "nubus-ethernet"
+        m.share = Share("/tmp", volume=True)
+        self.assertEqual(model.validate(m, None, check_files=False)[0], [])
 
     def test_lc475_has_one_slot(self):
         m = model.new_machine("x", "lc475")

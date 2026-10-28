@@ -259,7 +259,7 @@ NINEP_FSDEV = "hostshare"
 def host_disk_on(m: Machine) -> bool:
     """The shared folder goes in as a disk (and the machine can take it)."""
     t = m.type
-    return m.share.volume_on and t.host_disk and not (t.pds_cards and m.pds)
+    return m.share.volume_on and t.host_disk and not (t.slot_kind == "PDS" and m.pds)
 
 
 def host_disk_args(m: Machine, qemu_dir: str, platform: str) -> list[str]:

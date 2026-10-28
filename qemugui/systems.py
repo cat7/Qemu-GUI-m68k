@@ -85,9 +85,9 @@ class MachineType:
     pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its expansion slot takes
     slot_kind: str = "PDS"       # what that slot is: "PDS" or "NuBus"
     scsi_buses: int = 1          # 2: also an external SCSI bus (SCSI_BUSES)
-    # The shared folder as a disk (classicvirtio's NuBus card). Its code
-    # runs from the card at 32-bit addresses, and the Mac II family ROMs
-    # start cards in 24-bit mode, so only the 68040 models.
+    # The shared folder as a disk (classicvirtio's NuBus card, in 24-bit
+    # and 32-bit mode). It takes a slot: on a model with a single PDS slot
+    # not together with a card there.
     host_disk: bool = False
 
     @property
@@ -118,22 +118,22 @@ MACHINES: dict[str, MachineType] = {
     "macii": MachineType("macii", "Macintosh II", 8, 8,
                          (1, 2, 4, 8), "640x480",
                          icount=True, easc=False, onboard_nic=False,
-                         pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
+                         pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
     # The Mac II board with a 68030 and SIMMs of up to 16 MB; the Mac IIx
     # ROM, which reads 800K and 1.4 MB floppies. The IIcx has three slots.
     "maciix": MachineType("maciix", "Macintosh IIx", 32, 128,
                           (4, 8, 16, 32, 64, 128), "640x480",
                           icount=True, easc=False, onboard_nic=False,
-                          pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
+                          pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
     "maciicx": MachineType("maciicx", "Macintosh IIcx", 32, 128,
                            (4, 8, 16, 32, 64, 128), "640x480",
                            icount=True, easc=False, onboard_nic=False,
-                           pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
+                           pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
     # Two banks of 4-64 MB.
     "maciifx": MachineType("maciifx", "Macintosh IIfx", 32, 128,
                            (4, 8, 16, 20, 32, 64, 128), "640x480",
                            icount=True, easc=False, onboard_nic=False,
-                           pds_cards=("nubus-ethernet",), slot_kind="NuBus"),
+                           pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
 }
 
 
