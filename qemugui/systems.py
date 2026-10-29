@@ -27,6 +27,8 @@ ICOUNT_OPTION = f"shift={ICOUNT_SHIFT},align=on"
 MOUSE_SPEEDS = (25, 35, 50, 75, 100, 150)
 DEFAULT_MOUSE_SPEED = 50
 
+RAM_MIN = 4
+
 # Apple's own Ethernet prefix, which the Mac OS network drivers expect.
 MAC_PREFIX = "08:00:07"
 
@@ -61,10 +63,28 @@ MONITORS: tuple[Screen, ...] = (
     Screen(832, 624, 'Apple 16" Color'),
     Screen(1152, 870, 'Apple 21" Color'),
 )
+# The LC and LC II's V8 chip senses three monitors; the LC III's Sonora
+# also the 16" and VGA ones.
+LC_MONITORS: tuple[Screen, ...] = (
+    Screen(512, 384, 'Apple 12" RGB'),
+    Screen(640, 480, 'Apple 13" RGB'),
+    Screen(640, 870, 'Apple 15" Portrait (greyscale)'),
+)
+LC3_MONITORS: tuple[Screen, ...] = (
+    Screen(512, 384, 'Apple 12" RGB'),
+    Screen(640, 480, 'Apple 13" RGB / VGA'),
+    Screen(640, 870, 'Apple 15" Portrait (greyscale)'),
+    Screen(832, 624, 'Apple 16" Color'),
+)
 # The Mac II family has no built-in video: QEMU fits its own NuBus
 # video card in slot 9, which starts in any of these sizes.
 SCREENS: dict[str, tuple[Screen, ...]] = {
-    mid: MONITORS for mid in ("q800", "q700", "q900", "lc475", "macii", "maciix", "maciicx", "maciifx")}
+    **{mid: MONITORS for mid in ("q800", "q700", "q900", "q950", "lc475", "macii",
+                                 "maciix", "maciicx", "maciifx")},
+    "maclc": LC_MONITORS,
+    "maclc2": LC_MONITORS,
+    "maclc3": LC3_MONITORS,
+}
 
 # Older records named sizes that are no monitor: the screen they really got
 OLD_SCREENS = {"800x600": "640x480"}
@@ -89,6 +109,16 @@ class MachineType:
     # and 32-bit mode). It takes a slot: on a model with a single PDS slot
     # a card there has to carry it too (PdsCard.host_disk_device).
     host_disk: bool = False
+    # Only the sizes in ram_choices work (the RAM is soldered RAM plus
+    # SIMMs of fixed sizes)
+    ram_exact: bool = False
+    # Built-in video memory in KB the model can have (-global
+    # mac-lc-video.vram-size); the first is what Apple fitted
+    vram_choices: tuple[int, ...] = ()
+
+    @property
+    def ram_min(self) -> int:
+        return min(self.ram_choices) if self.ram_exact else RAM_MIN
 
     @property
     def screens(self) -> tuple[Screen, ...]:
@@ -106,12 +136,36 @@ MACHINES: dict[str, MachineType] = {
                         (8, 16, 20, 32, 64, 128, 256), "832x624",
                         icount=False, easc=False,
                         scsi_buses=2, host_disk=True),
+    # A 33 MHz Quadra 900 with its own ROM and 2 MB of VRAM
+    "q950": MachineType("q950", "Macintosh Quadra 950", 64, 256,
+                        (8, 16, 20, 32, 64, 128, 256), "832x624",
+                        icount=False, easc=False,
+                        scsi_buses=2, host_disk=True),
     # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
     # 36 MB of QEMU's flat RAM, so 32 for now
     "lc475": MachineType("lc475", "Macintosh LC 475", 32, 32,
                          (4, 8, 16, 32), "640x480",
                          icount=False, easc=True, onboard_nic=False,
                          pds_cards=("ethernet",), host_disk=True),
+    # The V8 chip: board RAM plus a pair of SIMMs, 10 MB at most. With
+    # 256 KB of VRAM 640 x 480 has 16 colours; the VRAM SIMM (512 KB)
+    # gives 256, and thousands on the 12" RGB. No slot card yet.
+    "maclc": MachineType("maclc", "Macintosh LC", 4, 10,
+                         (2, 4, 6, 10), "640x480",
+                         icount=False, easc=False, onboard_nic=False,
+                         ram_exact=True, vram_choices=(256, 512)),
+    # 10 MB (8 MB of SIMMs) is not sized right yet
+    "maclc2": MachineType("maclc2", "Macintosh LC II", 8, 8,
+                          (4, 6, 8), "640x480",
+                          icount=False, easc=False, onboard_nic=False,
+                          ram_exact=True, vram_choices=(256, 512)),
+    # Sonora: 4 MB on the board and one SIMM of 1-32 MB; 512 KB of VRAM,
+    # 768 KB with the VRAM SIMM (thousands at 640 x 480)
+    "maclc3": MachineType("maclc3", "Macintosh LC III", 8, 36,
+                          (4, 5, 6, 8, 12, 20, 36), "640x480",
+                          icount=False, easc=False, onboard_nic=False,
+                          pds_cards=("ethernet",), host_disk=True,
+                          ram_exact=True, vram_choices=(512, 768)),
     # 1 MB SIMMs, as Apple shipped it. 800K floppies, and 1.4 MB ones
     # with the Mac IIx ROM (the FDHD upgrade). The Mac II family has no
     # built-in Ethernet; it takes the Ethernet NB card in a NuBus slot.
@@ -189,7 +243,6 @@ SCSI_BUSES = (("Internal SCSI", ""), ("External SCSI", "scsi.0"))
 
 
 DEFAULT_MACHINE = "q800"
-RAM_MIN = 4
 
 
 def machine_ids() -> list[str]:

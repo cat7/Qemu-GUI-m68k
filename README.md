@@ -2,7 +2,8 @@
 
 A portable launcher for the 68k Macintosh machines of `qemu-system-m68k`:
 the Macintosh Quadra 800 (`q800`), Quadra 700 (`q700`), Quadra 900 (`q900`),
-LC 475 (`lc475`), Macintosh II (`macii`), IIx (`maciix`), IIcx (`maciicx`)
+Quadra 950 (`q950`), LC 475 (`lc475`), LC (`maclc`), LC II (`maclc2`),
+LC III (`maclc3`), Macintosh II (`macii`), IIx (`maciix`), IIcx (`maciicx`)
 and IIfx (`maciifx`). Needs real Apple ROMs. The program must sit in the same
 folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
 `Machines` folder next to it, one subfolder per machine with its
@@ -22,11 +23,19 @@ and its floppy drives may not work.
 - Machine model, from the table in `qemugui/systems.py` (one `MachineType`
   line per model, one `Screen` line per monitor).
 - ROM (`-bios`): chosen by the person; a new machine has none. (The
-  Quadra 900 uses the same ROM as the 700.)
+  Quadra 900 uses the same ROM as the 700; the Quadra 950 has its own,
+  which also runs the 700 and 900.)
 - Memory (`-m`): up to Apple's maximum: 136 MB on the Quadra 800, 68 MB on
-  the Quadra 700, 256 MB on the Quadra 900. The LC 475's is 36 MB, but its
-  ROM's memory sizing hangs at 36 MB, so 32 MB for now. Macintosh II:
-  1 to 8 MB. IIx, IIcx and IIfx: 4 to 128 MB.
+  the Quadra 700, 256 MB on the Quadra 900 and 950. The LC 475's is 36 MB,
+  but its ROM's memory sizing hangs at 36 MB, so 32 MB for now. Macintosh
+  II: 1 to 8 MB. IIx, IIcx and IIfx: 4 to 128 MB. The LCs take only the
+  sizes their soldered RAM and SIMMs make: LC 2, 4, 6 or 10 MB; LC II 4, 6
+  or 8 MB (10 MB does not work yet); LC III 4, 5, 6, 8, 12, 20 or 36 MB.
+- Video memory (Display tab, LCs only): what Apple fitted, or the VRAM
+  SIMM. LC and LC II: 256 KB (640 × 480 in 16 colours) or 512 KB (256
+  colours, and thousands on the 12" RGB). LC III: 512 KB or 768 KB
+  (thousands at 640 × 480). The LC and LC II sense the 12", 13" and 15"
+  Apple monitors; the LC III also the 16" and VGA.
 - Quadra 900 and IIfx: keyboard, mouse and floppy drive go through the
   emulated SWIM I/O processor. LC 475: no built-in
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
@@ -35,7 +44,7 @@ and its floppy drives may not work.
   per pixel). No built-in Ethernet. They need real-machine speed. The Mac II takes
   the Mac II ROM (800K floppies) or the Mac IIx ROM (800K and 1.4 MB
   floppies); the IIx and IIcx use the Mac IIx ROM.
-- PDS slot (LC 475, Machine tab): Empty or the Ethernet card
+- PDS slot (LC 475 and LC III, Machine tab): Empty or the Ethernet card
   (`-device mac-pds-ethernet`), a SONIC card that Mac OS drives with its own
   "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP
   control panels.

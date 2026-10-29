@@ -72,6 +72,17 @@ def _speed_value(label: str, fallback: int) -> int:
     except (IndexError, ValueError):
         return fallback
 
+
+def _vram_label(kb: int) -> str:
+    return f"{kb} KB"
+
+
+def _vram_value(label: str) -> int:
+    try:
+        return int(label.split()[0])
+    except (IndexError, ValueError):
+        return 0
+
 class FilePicker:
     """One control for one file: type a path into it, paste one into it, or
     double-click it to go and find one."""
@@ -392,6 +403,14 @@ class MachineEditor(tk.Toplevel):
         ttk.Label(f, text="Starts at this size. Change resolution and colours in Mac OS "
                           "(Monitors control panel)",
                   foreground=GREY).grid(row=2, column=1, sticky="w")
+        # built-in video memory, on the models that had a VRAM upgrade
+        vf = ttk.Frame(f)
+        vf.grid(row=1, column=2, sticky="w", padx=(12, 0))
+        ttk.Label(vf, text="Video memory:").grid(row=0, column=0, sticky="w")
+        self.vram_var = tk.StringVar()
+        self.vram_cb = ttk.Combobox(vf, textvariable=self.vram_var, state="readonly", width=8)
+        self.vram_cb.grid(row=0, column=1, sticky="w", padx=(4, 0))
+        self.vram_frame = vf
         ttk.Separator(f).grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
         self._heading(f, 4, "Display type")
         ttk.Label(f, text="Display:").grid(row=5, column=0, sticky="w", pady=4)
@@ -644,6 +663,13 @@ class MachineEditor(tk.Toplevel):
         self.ram_cb.config(values=[str(x) for x in t.ram_choices])
         self.ram_hint.config(text=f"Up to {t.ram_max} MB")
         self.screen_cb.config(values=[s.label for s in t.screens])
+        if t.vram_choices:
+            self.vram_cb.config(values=[_vram_label(k) for k in t.vram_choices])
+            if self.vram_var.get() not in self.vram_cb.cget("values"):
+                self.vram_var.set(_vram_label(t.vram_choices[0]))
+            self.vram_frame.grid()
+        else:
+            self.vram_frame.grid_remove()
         self.easc_cb.config(state="normal" if t.easc else "disabled")
         for row in self.floppy_rows:
             row.enable(t.floppy)
@@ -698,6 +724,7 @@ class MachineEditor(tk.Toplevel):
         self.rom_var.set(cur.rom)
         self.ram_var.set(str(cur.ram_mb))
         self._set_screen(cur.machine, cur.screen)
+        self._set_vram(cur)
         self.icount_var.set(cur.icount)
         self._set_pds(cur.pds)
         self._set_scsi(cur)
@@ -707,6 +734,10 @@ class MachineEditor(tk.Toplevel):
             row.set(m.scsi_by_id(sid))
         for sid, row in enumerate(self.ext_rows):
             row.set(m.scsi_by_id(sid, 1))
+
+    def _set_vram(self, m: Machine):
+        kb = model.vram_kb(m)
+        self.vram_var.set(_vram_label(kb) if kb else "")
 
     def _set_screen(self, machine_id: str, screen_id: str):
         s = systems.screen_by_id(machine_id, screen_id) or \
@@ -725,6 +756,7 @@ class MachineEditor(tk.Toplevel):
         self.pram_var.set(m.pram)
         self.icount_var.set(m.icount)
         self._set_screen(m.machine, m.screen)
+        self._set_vram(m)
         self.display_var.set(m.display)
         self.swap_var.set(m.swap_opt_cmd)
         self.mouse_var.set(_speed_label(m.mouse_speed))
@@ -768,6 +800,7 @@ class MachineEditor(tk.Toplevel):
         m.icount = self.icount_var.get()
         s = systems.screen_by_label(m.machine, self.screen_var.get())
         m.screen = s.id if s else ""
+        m.vram_kb = _vram_value(self.vram_var.get()) if m.type.vram_choices else 0
         m.display = self.display_var.get()
         m.swap_opt_cmd = self.swap_var.get()
         m.mouse_speed = _speed_value(self.mouse_var.get(), m.mouse_speed)

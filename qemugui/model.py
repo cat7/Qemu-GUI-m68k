@@ -345,6 +345,23 @@ def _mouse_speed(v) -> int:
     return v if 1 <= v <= 400 else systems.DEFAULT_MOUSE_SPEED
 
 
+def _vram_kb(t, v) -> int:
+    """A saved VRAM size the model can have, else 0 (its own)."""
+    try:
+        v = int(v)
+    except (TypeError, ValueError):
+        return 0
+    return v if v in t.vram_choices else 0
+
+
+def vram_kb(m: "Machine") -> int:
+    """The machine's VRAM in KB, or 0 if the model has no choice."""
+    t = m.type
+    if not t.vram_choices:
+        return 0
+    return m.vram_kb if m.vram_kb in t.vram_choices else t.vram_choices[0]
+
+
 @dataclass
 class Machine:
     name: str = "New machine"
@@ -359,6 +376,7 @@ class Machine:
     mouse_speed: int = 50        # percent, -global adb-mouse.speed
     audio: str = "default"
     easc: bool = True            # q800 only: Enhanced ASC (off = plain ASC)
+    vram_kb: int = 0             # built-in VRAM, 0: what the model came with
     network: Network = field(default_factory=Network)
     pds: str = ""                # card in the PDS or NuBus slot, "" = empty
     scsi: list = field(default_factory=list)
@@ -387,6 +405,7 @@ class Machine:
             "mouse_speed": self.mouse_speed,
             "audio": self.audio,
             "easc": self.easc,
+            "vram_kb": self.vram_kb,
             "network": self.network.to_dict(),
             "pds": self.pds,
             "scsi": [d.to_dict() for d in sorted(self.scsi, key=lambda s: (s.bus, s.id))],
@@ -417,6 +436,7 @@ class Machine:
             mouse_speed=_mouse_speed(d.get("mouse_speed")),
             audio=str(d.get("audio", "default")),
             easc=bool(d.get("easc", True)),
+            vram_kb=_vram_kb(t, d.get("vram_kb")),
             network=Network.from_dict(d.get("network")),
             pds=str(d.get("pds", "") or ""),
             scsi=scsi,
@@ -480,8 +500,11 @@ def apply_machine_type(m: Machine, machine_id: str) -> None:
     if old.id == new.id:
         return
     m.machine = new.id
-    if m.ram_mb > new.ram_max or m.ram_mb == old.ram_mb:
+    if m.ram_mb > new.ram_max or m.ram_mb == old.ram_mb or \
+            (new.ram_exact and m.ram_mb not in new.ram_choices):
         m.ram_mb = new.ram_mb
+    if m.vram_kb not in new.vram_choices:
+        m.vram_kb = 0
     if screen_by_id(new.id, m.screen) is None:
         m.screen = new.screen
     if m.pds not in new.pds_cards:
@@ -556,8 +579,11 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
         errors.append("That name will not work.")
     if m.machine not in MACHINES:
         errors.append(f"'{m.machine}' is not a machine this program knows.")
-    if not (RAM_MIN <= m.ram_mb <= t.ram_max):
-        errors.append(f"Memory has to be between {RAM_MIN} and {t.ram_max} MB on the {t.label}.")
+    if t.ram_exact and m.ram_mb not in t.ram_choices:
+        sizes = ", ".join(str(x) for x in t.ram_choices[:-1])
+        errors.append(f"The {t.label} takes {sizes} or {t.ram_choices[-1]} MB of memory.")
+    elif not (t.ram_min <= m.ram_mb <= t.ram_max):
+        errors.append(f"Memory has to be between {t.ram_min} and {t.ram_max} MB on the {t.label}.")
     if screen_by_id(t.id, m.screen) is None:
         errors.append(f"The {t.label} cannot show {m.screen}.")
     if m.display == "cocoa" and platform != "darwin":

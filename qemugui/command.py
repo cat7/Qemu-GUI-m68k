@@ -233,6 +233,8 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
                            "format=raw,if=mtd"]
     argv += ["-rtc", "base=localtime"]
     argv += ["-g", m.screen]
+    if model.vram_kb(m):
+        argv += ["-global", f"mac-lc-video.vram-size={model.vram_kb(m) * 1024}"]
     argv += ["-display", display_option(m)]
     argv += ["-audiodev", f"{audio},id={AUDIODEV_ID}"]
     argv += network_args(m, qd, platform)
