@@ -355,6 +355,14 @@ class Network_(unittest.TestCase):
         self.assertEqual(option(argv, "-netdev"), [])
         self.assertIn("mac-pds-ethernet,mac=08:00:07:01:02:03", option(argv, "-device"))
 
+    def test_the_lcs_take_the_ethernet_card(self):
+        for mid in ("maclc", "maclc2", "maclc3"):
+            m = model.new_machine("A", mid)
+            m.pds = "ethernet"
+            m.network = Network(mac="08:00:07:01:02:03", mode="user")
+            self.assertIn("mac-pds-ethernet,netdev=net0,mac=08:00:07:01:02:03",
+                          option(argv_for(m), "-device"), mid)
+
     def test_card_ignored_on_a_model_without_the_slot(self):
         m = model.new_machine("A", "q800")
         m.pds = "ethernet"

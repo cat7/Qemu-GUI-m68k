@@ -149,15 +149,17 @@ MACHINES: dict[str, MachineType] = {
                          pds_cards=("ethernet",), host_disk=True),
     # The V8 chip: board RAM plus a pair of SIMMs, 10 MB at most. With
     # 256 KB of VRAM 640 x 480 has 16 colours; the VRAM SIMM (512 KB)
-    # gives 256, and thousands on the 12" RGB. No slot card yet.
+    # gives 256, and thousands on the 12" RGB. A PDS slot, as on the LC III.
     "maclc": MachineType("maclc", "Macintosh LC", 4, 10,
                          (2, 4, 6, 10), "640x480",
                          icount=False, easc=False, onboard_nic=False,
+                         pds_cards=("ethernet",), host_disk=True,
                          ram_exact=True, vram_choices=(256, 512)),
     # 10 MB (8 MB of SIMMs) is not sized right yet
     "maclc2": MachineType("maclc2", "Macintosh LC II", 8, 8,
                           (4, 6, 8), "640x480",
                           icount=False, easc=False, onboard_nic=False,
+                          pds_cards=("ethernet",), host_disk=True,
                           ram_exact=True, vram_choices=(256, 512)),
     # Sonora: 4 MB on the board and one SIMM of 1-32 MB; 512 KB of VRAM,
     # 768 KB with the VRAM SIMM (thousands at 640 x 480)

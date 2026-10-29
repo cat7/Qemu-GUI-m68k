@@ -44,10 +44,11 @@ and its floppy drives may not work.
   per pixel). No built-in Ethernet. They need real-machine speed. The Mac II takes
   the Mac II ROM (800K floppies) or the Mac IIx ROM (800K and 1.4 MB
   floppies); the IIx and IIcx use the Mac IIx ROM.
-- PDS slot (LC 475 and LC III, Machine tab): Empty or the Ethernet card
+- PDS slot (LC, LC II, LC III and LC 475, Machine tab): Empty or the Ethernet card
   (`-device mac-pds-ethernet`), a SONIC card that Mac OS drives with its own
   "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP
-  control panels.
+  control panels. On the LC (68020) it needs classic AppleTalk and MacTCP,
+  as Open Transport needs a 68030.
 - NuBus slot (Mac II, IIx, IIcx, IIfx, Machine tab): Empty or the Ethernet
   NB card (`-device nubus-ethernet`), a SONIC card with its own buffer RAM
   that Mac OS drives with its "Sonic 16 NB" driver. It goes in the first
@@ -92,7 +93,7 @@ and its floppy drives may not work.
   50 by default): macOS and Mac OS both accelerate the pointer.
 - Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine
   card address under Apple's `08:00:07` prefix; port forwarding with slirp.
-  With an Ethernet card (LC 475, Mac II family) the same settings become
+  With an Ethernet card (the LCs, Mac II family) the same settings become
   `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`
   (`nubus-ethernet` on the Mac II family).
 - Sound: ASC through `-audiodev` (CoreAudio on a Mac); Enhanced ASC on the
@@ -113,7 +114,7 @@ and its floppy drives may not work.
   next to `qemu-system-m68k`, built from
   https://github.com/cat7/classicvirtio (`make classic`). It works with
   32-bit addressing on or off; in 24-bit mode the driver takes about
-  0.5 MB at the top of the Mac's memory. The LC 475 has only its PDS
+  0.5 MB at the top of the Mac's memory. The LCs have only their PDS
   slot: with the Ethernet card in it, that card carries the shared folder
   too (`-device mac-pds-ethernet-virtio`, with the ROM `declrom-pds`).
 
