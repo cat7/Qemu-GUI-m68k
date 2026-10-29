@@ -78,7 +78,7 @@ class MachineType:
     ram_max: int                 # QEMU refuses more
     ram_choices: tuple[int, ...]
     screen: str                  # the Screen.id a new machine starts with
-    icount: bool                 # -icount shift=ICOUNT_SHIFT on by default
+    icount: bool                 # "Run at real-machine speed" on by default
     easc: bool                   # has the "easc" machine property
     floppy: bool = True          # QEMU emulates its floppy drives
     onboard_nic: bool = True     # built-in SONIC Ethernet (-nic model=dp83932)
@@ -101,10 +101,10 @@ MACHINES: dict[str, MachineType] = {
                         icount=False, easc=True, host_disk=True),
     "q700": MachineType("q700", "Macintosh Quadra 700", 64, 68,
                         (8, 16, 20, 32, 64, 68), "832x624",
-                        icount=True, easc=False, host_disk=True),
+                        icount=False, easc=False, host_disk=True),
     "q900": MachineType("q900", "Macintosh Quadra 900", 64, 256,
                         (8, 16, 20, 32, 64, 128, 256), "832x624",
-                        icount=True, easc=False,
+                        icount=False, easc=False,
                         scsi_buses=2, host_disk=True),
     # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
     # 36 MB of QEMU's flat RAM, so 32 for now
@@ -117,22 +117,22 @@ MACHINES: dict[str, MachineType] = {
     # built-in Ethernet; it takes the Ethernet NB card in a NuBus slot.
     "macii": MachineType("macii", "Macintosh II", 8, 8,
                          (1, 2, 4, 8), "640x480",
-                         icount=True, easc=False, onboard_nic=False,
+                         icount=False, easc=False, onboard_nic=False,
                          pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
     # The Mac II board with a 68030 and SIMMs of up to 16 MB; the Mac IIx
     # ROM, which reads 800K and 1.4 MB floppies. The IIcx has three slots.
     "maciix": MachineType("maciix", "Macintosh IIx", 32, 128,
                           (4, 8, 16, 32, 64, 128), "640x480",
-                          icount=True, easc=False, onboard_nic=False,
+                          icount=False, easc=False, onboard_nic=False,
                           pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
     "maciicx": MachineType("maciicx", "Macintosh IIcx", 32, 128,
                            (4, 8, 16, 32, 64, 128), "640x480",
-                           icount=True, easc=False, onboard_nic=False,
+                           icount=False, easc=False, onboard_nic=False,
                            pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
     # Two banks of 4-64 MB.
     "maciifx": MachineType("maciifx", "Macintosh IIfx", 32, 128,
                            (4, 8, 16, 20, 32, 64, 128), "640x480",
-                           icount=True, easc=False, onboard_nic=False,
+                           icount=False, easc=False, onboard_nic=False,
                            pds_cards=("nubus-ethernet",), slot_kind="NuBus", host_disk=True),
 }
 

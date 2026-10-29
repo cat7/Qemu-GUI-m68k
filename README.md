@@ -72,11 +72,13 @@ and its floppy drives may not work.
   Color (1152 × 870); the size picks the monitor. Colour depth is chosen in
   Mac OS (Monitors control panel), which keeps it in PRAM. cocoa (with
   optional Option/Command swap) or sdl.
-- Speed limit (`-icount shift=6,align=on`): on by default for the Quadra
-  700, Quadra 900 and the Mac II family, whose ROM self tests need
-  real-machine speed; off for the Quadra 800 and LC 475.
-  `align=on` keeps the Mac's clock in real time; without it the clock, key
-  repeat and double-click time ran about three times too fast.
+- Run at real-machine speed (`-icount shift=6,align=on`): off by default
+  on every model. The ROMs no longer need it (QEMU slows the CPU by itself
+  while they time their start-up loops); it is for software that times
+  itself against the clock, such as some system versions that otherwise
+  stop with a divide-by-zero error. `align=on` keeps the Mac's clock in
+  real time; without it the clock, key repeat and double-click time ran
+  about three times too fast.
 - Mouse speed (`-global adb-mouse.speed=N`, percent of the host's motion,
   50 by default): macOS and Mac OS both accelerate the pointer.
 - Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine

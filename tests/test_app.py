@@ -294,7 +294,7 @@ class Windows(unittest.TestCase):
         self.add("Q7", "q700")
         text = self.w.command_line.get("1.0", "end")
         self.assertIn("-M q700,audiodev=snd", text)
-        self.assertIn("-icount shift=6", text)
+        self.assertNotIn("-icount", text)
         self.assertIn(str(self.dir / "Quadra700.rom"), text)
 
     def test_copy_command(self):
@@ -377,7 +377,7 @@ class Windows(unittest.TestCase):
         e._type_chosen()
         got = e.collect()
         self.assertEqual((got.machine, got.rom, got.ram_mb, got.screen, got.icount),
-                         ("q700", "", 64, "832x624", True))
+                         ("q700", "", 64, "832x624", False))
         self.assertEqual(list(e.screen_cb.cget("values")),
                          [s.label for s in model.machine_type("q700").screens])
         self.assertTrue(e.easc_cb.instate(["disabled"]))

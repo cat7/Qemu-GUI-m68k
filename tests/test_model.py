@@ -55,9 +55,10 @@ class TheModelTable(unittest.TestCase):
         for t in systems.MACHINES.values():
             self.assertEqual(max(t.ram_choices), t.ram_max, t.id)
 
-    def test_q700_needs_icount_q800_does_not(self):
-        self.assertTrue(systems.MACHINES["q700"].icount)
-        self.assertFalse(systems.MACHINES["q800"].icount)
+    def test_no_model_needs_real_machine_speed(self):
+        # QEMU paces the ROMs' start-up timing loops itself
+        for t in systems.MACHINES.values():
+            self.assertFalse(t.icount, t.id)
 
     def test_screen_labels(self):
         s = systems.Screen(832, 624, 'Apple 16" Color')
@@ -133,7 +134,7 @@ class Record(unittest.TestCase):
     def test_a_bare_record_takes_its_models_defaults(self):
         m = Machine.from_dict({"name": "x", "machine": "q700"})
         self.assertEqual((m.ram_mb, m.rom, m.screen, m.icount, m.pram),
-                         (64, "", "832x624", True, "pram.img"))
+                         (64, "", "832x624", False, "pram.img"))
         self.assertRegex(m.network.mac, r"^08:00:07:")
         self.assertEqual(m.floppies, [None, None])
 
@@ -155,11 +156,12 @@ class SwitchingModel(unittest.TestCase):
         m = model.new_machine("x", "q800")
         model.apply_machine_type(m, "q700")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.screen, m.icount),
-                         ("q700", "", 64, "832x624", True))
+                         ("q700", "", 64, "832x624", False))
         m.rom = "/roms/mine.rom"
+        m.icount = True
         model.apply_machine_type(m, "q800")
         self.assertEqual((m.machine, m.rom, m.ram_mb, m.icount),
-                         ("q800", "/roms/mine.rom", 128, False))   # the ROM is the person's
+                         ("q800", "/roms/mine.rom", 128, True))   # the ROM and speed are the person's
         self.assertEqual(m.screen, "832x624")
         m.screen = "1152x870"
         model.apply_machine_type(m, "q700")

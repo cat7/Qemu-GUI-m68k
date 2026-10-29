@@ -475,7 +475,7 @@ def apply_machine_type(m: Machine, machine_id: str) -> None:
     """Switch a record to another model, carrying over what still fits: the
     ROM follows if it was the old model's default, memory is capped, the
     screen falls back to the new model's default if the old one is not
-    offered, and the speed limit takes the new model's default."""
+    offered. "Run at real-machine speed" stays as the person set it."""
     old, new = m.type, machine_type(machine_id)
     if old.id == new.id:
         return
@@ -484,7 +484,6 @@ def apply_machine_type(m: Machine, machine_id: str) -> None:
         m.ram_mb = new.ram_mb
     if screen_by_id(new.id, m.screen) is None:
         m.screen = new.screen
-    m.icount = new.icount
     if m.pds not in new.pds_cards:
         m.pds = ""
     # A model with one bus takes drives from the external bus at free IDs

@@ -144,7 +144,7 @@ class Machines(unittest.TestCase):
         m = model.new_machine("B", "q700")
         argv = argv_for(m, machine_dir="/M/B")
         self.assertEqual(option(argv, "-M"), ["q700,audiodev=snd"])
-        self.assertEqual(option(argv, "-icount"), ["shift=6,align=on"])
+        self.assertNotIn("-icount", argv)
         self.assertEqual(option(argv, "-m"), ["64"])
         self.assertEqual(option(argv, "-bios"), [])
         self.assertEqual(option(argv, "-g"), ["832x624"])

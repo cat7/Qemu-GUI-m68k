@@ -36,11 +36,11 @@ EDITOR_WIDTH = 760
 
 ICOUNT_TIP = (f"Adds -icount {ICOUNT_OPTION}: the emulated CPU runs at a fixed speed "
               "close to the real machine instead of as fast as the host allows, and the "
-              "Mac's clock keeps real time. The power-on self tests of the Mac II family "
-              "and the Quadra 700 and 900 time the CPU and fail (no chime, or a sad Mac) "
-              "when it is too fast, and System 7.5 on the Mac II family stops with a "
-              "divide-by-zero error, so it is needed there for now. It makes the Mac "
-              "slower; leave it off on the Quadra 800.")
+              "Mac's clock keeps real time. The ROMs no longer need it: QEMU slows the "
+              "CPU by itself while they time their start-up loops. Turn it on for "
+              "software that times itself against the clock and fails or runs too fast "
+              "otherwise (some system versions stop with a divide-by-zero error, games "
+              "can run too fast). It makes the Mac slower.")
 EASC_TIP = ("The Quadra 800 has Apple's Enhanced ASC sound chip. Untick to emulate the "
             "original ASC instead, for software that only knows the older chip.")
 SWAP_TIP = "Swap the Option and Command keys, for a PC keyboard."
@@ -348,13 +348,10 @@ class MachineEditor(tk.Toplevel):
         self._heading(f, r, "Speed")
         r += 1
         self.icount_var = tk.BooleanVar(value=False)
-        cb = ttk.Checkbutton(f, text=f"Run at real-machine speed (-icount {ICOUNT_OPTION})",
+        cb = ttk.Checkbutton(f, text="Run at real-machine speed",
                              variable=self.icount_var)
         cb.grid(row=r, column=0, columnspan=3, sticky="w")
         ToolTip(cb, ICOUNT_TIP)
-        r += 1
-        ttk.Label(f, text="Needed by the Quadra 700 ROM for now",
-                  foreground=GREY).grid(row=r, column=0, columnspan=3, sticky="w")
 
     def _new_pram(self):
         """Point the machine at its own pram.img and make it blank: offered,
