@@ -354,6 +354,18 @@ def _vram_kb(t, v) -> int:
     return v if v in t.vram_choices else 0
 
 
+# What the AV Macs' video input shows: the -global mac-civic.video-in value
+VIDEO_INPUTS = {
+    "none": "Nothing connected",
+    "camera": "Camera",
+    "bars": "Colour bars",
+}
+
+
+def _video_in(v) -> str:
+    return v if v in VIDEO_INPUTS else "none"
+
+
 def vram_kb(m: "Machine") -> int:
     """The machine's VRAM in KB, or 0 if the model has no choice."""
     t = m.type
@@ -377,6 +389,7 @@ class Machine:
     audio: str = "default"
     easc: bool = True            # q800 only: Enhanced ASC (off = plain ASC)
     vram_kb: int = 0             # built-in VRAM, 0: what the model came with
+    video_in: str = "none"       # AV Macs: a VIDEO_INPUTS key
     network: Network = field(default_factory=Network)
     pds: str = ""                # card in the PDS or NuBus slot, "" = empty
     scsi: list = field(default_factory=list)
@@ -406,6 +419,7 @@ class Machine:
             "audio": self.audio,
             "easc": self.easc,
             "vram_kb": self.vram_kb,
+            "video_in": self.video_in,
             "network": self.network.to_dict(),
             "pds": self.pds,
             "scsi": [d.to_dict() for d in sorted(self.scsi, key=lambda s: (s.bus, s.id))],
@@ -437,6 +451,7 @@ class Machine:
             audio=str(d.get("audio", "default")),
             easc=bool(d.get("easc", True)),
             vram_kb=_vram_kb(t, d.get("vram_kb")),
+            video_in=_video_in(d.get("video_in")),
             network=Network.from_dict(d.get("network")),
             pds=str(d.get("pds", "") or ""),
             scsi=scsi,

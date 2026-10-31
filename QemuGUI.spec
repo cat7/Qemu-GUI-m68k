@@ -101,5 +101,9 @@ else:
             # One window, no document types, and it must not keep running with
             # no windows open.
             'LSApplicationCategoryType': 'public.app-category.utilities',
+            # QEMU, started from here, asks for the camera when an AV Mac's
+            # video input is set to it; without this text macOS stops it.
+            'NSCameraUsageDescription':
+                'The Quadra 840AV\'s video input shows your camera.',
         },
     )

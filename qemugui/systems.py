@@ -128,6 +128,8 @@ class MachineType:
     # VRAM_DEVICE.vram-size); the first is what Apple fitted
     vram_choices: tuple[int, ...] = ()
     vram_device: str = "mac-lc-video"
+    # A video input (the AV Macs'): a camera on the host, or colour bars
+    video_in: bool = False
 
     @property
     def ram_min(self) -> int:
@@ -164,7 +166,8 @@ MACHINES: dict[str, MachineType] = {
                           nic_model="mace",
                           pds_cards=("nubus-ethernet",), slot_kind="NuBus",
                           host_disk=True, ram_exact=True,
-                          vram_choices=(1024, 2048), vram_device="mac-civic"),
+                          vram_choices=(1024, 2048), vram_device="mac-civic",
+                          video_in=True),
     # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
     # 36 MB of QEMU's flat RAM, so 32 for now
     "lc475": MachineType("lc475", "Macintosh LC 475", 32, 32,

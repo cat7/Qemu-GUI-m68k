@@ -412,6 +412,15 @@ class MachineEditor(tk.Toplevel):
         self.vram_cb = ttk.Combobox(vf, textvariable=self.vram_var, state="readonly", width=8)
         self.vram_cb.grid(row=0, column=1, sticky="w", padx=(4, 0))
         self.vram_frame = vf
+        # the AV Macs' video input
+        vif = ttk.Frame(f)
+        vif.grid(row=2, column=2, sticky="w", padx=(12, 0))
+        ttk.Label(vif, text="Video input:").grid(row=0, column=0, sticky="w")
+        self.video_in_var = tk.StringVar()
+        ttk.Combobox(vif, textvariable=self.video_in_var, state="readonly", width=18,
+                     values=list(model.VIDEO_INPUTS.values())).grid(
+            row=0, column=1, sticky="w", padx=(4, 0))
+        self.video_in_frame = vif
         ttk.Separator(f).grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
         self._heading(f, 4, "Display type")
         ttk.Label(f, text="Display:").grid(row=5, column=0, sticky="w", pady=4)
@@ -671,6 +680,10 @@ class MachineEditor(tk.Toplevel):
             self.vram_frame.grid()
         else:
             self.vram_frame.grid_remove()
+        if t.video_in:
+            self.video_in_frame.grid()
+        else:
+            self.video_in_frame.grid_remove()
         self.easc_cb.config(state="normal" if t.easc else "disabled")
         for i, row in enumerate(self.floppy_rows):
             row.enable(t.floppy and i < t.floppy_drives)
@@ -758,6 +771,8 @@ class MachineEditor(tk.Toplevel):
         self.icount_var.set(m.icount)
         self._set_screen(m.machine, m.screen)
         self._set_vram(m)
+        self.video_in_var.set(model.VIDEO_INPUTS.get(m.video_in,
+                                                     model.VIDEO_INPUTS["none"]))
         self.display_var.set(m.display)
         self.swap_var.set(m.swap_opt_cmd)
         self.mouse_var.set(_speed_label(m.mouse_speed))
@@ -802,6 +817,8 @@ class MachineEditor(tk.Toplevel):
         s = systems.screen_by_label(m.machine, self.screen_var.get())
         m.screen = s.id if s else ""
         m.vram_kb = _vram_value(self.vram_var.get()) if m.type.vram_choices else 0
+        m.video_in = next((k for k, v in model.VIDEO_INPUTS.items()
+                           if v == self.video_in_var.get()), "none")
         m.display = self.display_var.get()
         m.swap_opt_cmd = self.swap_var.get()
         m.mouse_speed = _speed_value(self.mouse_var.get(), m.mouse_speed)

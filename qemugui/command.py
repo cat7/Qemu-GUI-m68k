@@ -234,6 +234,8 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
     argv += ["-g", m.screen]
     if model.vram_kb(m):
         argv += ["-global", f"{m.type.vram_device}.vram-size={model.vram_kb(m) * 1024}"]
+    if m.type.video_in and m.video_in != "none":
+        argv += ["-global", f"mac-civic.video-in={m.video_in}"]
     argv += ["-display", display_option(m)]
     argv += ["-audiodev", f"{audio},id={AUDIODEV_ID}"]
     argv += network_args(m, qd, platform)

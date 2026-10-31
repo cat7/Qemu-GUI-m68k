@@ -375,6 +375,21 @@ class Network_(unittest.TestCase):
         self.assertEqual([d for d in option(argv, "-drive") if "if=floppy" in d],
                          ["if=floppy,index=0"])
 
+    def test_video_input(self):
+        m = model.new_machine("A", "q840av")
+        self.assertFalse(any("video-in" in a for a in argv_for(m)))
+        for v in ("camera", "bars"):
+            m.video_in = v
+            self.assertIn(f"mac-civic.video-in={v}", option(argv_for(m), "-global"))
+            self.assertEqual(model.Machine.from_json(m.to_json()).video_in, v)
+        # only the AV Macs have one
+        m = model.new_machine("A", "q800")
+        m.video_in = "camera"
+        self.assertFalse(any("video-in" in a for a in argv_for(m)))
+        d = m.to_dict()
+        d["video_in"] = "tv"
+        self.assertEqual(model.Machine.from_dict(d).video_in, "none")
+
     def test_card_ignored_on_a_model_without_the_slot(self):
         m = model.new_machine("A", "q800")
         m.pds = "ethernet"
