@@ -676,12 +676,18 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
             if not p.is_file():
                 warnings.append(f"{label}: {f} is not there.")
         floppy_ok = systems.machine_type(m.machine).floppy
+        drives = systems.machine_type(m.machine).floppy_drives
         for i, fd in enumerate(m.floppies):
             if fd and fd.file:
                 if not floppy_ok:
                     warnings.append(f"{floppy_name(i)}: the "
                                     f"{systems.machine_type(m.machine).label} has no "
                                     "working floppy drive yet; the disk is left out.")
+                    continue
+                if i >= drives:
+                    warnings.append(f"{floppy_name(i)}: the "
+                                    f"{systems.machine_type(m.machine).label} has no "
+                                    "such drive; the disk is left out.")
                     continue
                 why = floppy_problem(paths.join_path(machine_dir or "", fd.file, platform))
                 if why:

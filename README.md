@@ -44,8 +44,8 @@ and its floppy drives may not work.
   emulated SWIM I/O processor. LC 475: no built-in
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
 - Quadra 840AV: built-in MACE Ethernet (`-nic ...,model=mace`), three
-  NuBus slots. Its floppy controller is not emulated, and neither is the
-  DSP that Mac OS plays its sounds through: only the startup chime plays.
+  NuBus slots, one floppy drive (no external floppy port). Mac OS plays
+  its sounds through the emulated DSP3210.
 - Macintosh II, IIx, IIcx and IIfx: no built-in video; QEMU puts its own
   NuBus video card in slot 9 (any of the listed screen sizes, 1 to 32 bits
   per pixel). No built-in Ethernet. They need real-machine speed. The Mac II takes

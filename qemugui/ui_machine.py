@@ -672,8 +672,8 @@ class MachineEditor(tk.Toplevel):
         else:
             self.vram_frame.grid_remove()
         self.easc_cb.config(state="normal" if t.easc else "disabled")
-        for row in self.floppy_rows:
-            row.enable(t.floppy)
+        for i, row in enumerate(self.floppy_rows):
+            row.enable(t.floppy and i < t.floppy_drives)
         if t.scsi_buses > 1:
             self.ext_scsi.grid()
             self.scsi_heading.config(text=model.scsi_bus_name(0))

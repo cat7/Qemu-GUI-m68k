@@ -371,7 +371,9 @@ class Network_(unittest.TestCase):
         self.assertIn("mac-civic.vram-size=1048576", option(argv, "-global"))
         m.vram_kb = 2048
         self.assertIn("mac-civic.vram-size=2097152", option(argv_for(m), "-global"))
-        self.assertFalse([d for d in option(argv, "-drive") if "if=floppy" in d])
+        # the one internal floppy drive
+        self.assertEqual([d for d in option(argv, "-drive") if "if=floppy" in d],
+                         ["if=floppy,index=0"])
 
     def test_card_ignored_on_a_model_without_the_slot(self):
         m = model.new_machine("A", "q800")

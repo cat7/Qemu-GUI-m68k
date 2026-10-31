@@ -88,13 +88,14 @@ class TheModelTable(unittest.TestCase):
                          ["512x384", "640x480", "640x870", "832x624"])
 
     def test_the_840av(self):
-        """Civic senses the 19\" monitor too; MACE, Civic's VRAM, no floppy."""
+        """Civic senses the 19\" monitor too; MACE, Civic's VRAM, one floppy drive."""
         self.assertEqual([s.id for s in systems.SCREENS["q840av"]],
                          ["512x384", "640x480", "640x870", "832x624", "1024x768",
                           "1152x870"])
         t = systems.MACHINES["q840av"]
-        self.assertEqual((t.nic_model, t.vram_device, t.floppy, t.slot_kind),
-                         ("mace", "mac-civic", False, "NuBus"))
+        self.assertEqual((t.nic_model, t.vram_device, t.floppy, t.floppy_drives,
+                          t.slot_kind),
+                         ("mace", "mac-civic", True, 1, "NuBus"))
         for mb in t.ram_choices:
             # 16 MB banks, then at most one of 4 or 8 MB
             self.assertIn(mb % 16, (0, 4, 8), mb)

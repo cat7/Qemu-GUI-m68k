@@ -55,7 +55,10 @@ class FloppyPanel(ttk.LabelFrame):
             return
         for i, v in enumerate(self.files):
             f = files.get(i)
-            v.set(os.path.basename(f) if f else "(empty)")
+            if i not in files:
+                v.set("(no such drive)")
+            else:
+                v.set(os.path.basename(f) if f else "(empty)")
         self.note.config(text="Drag a disk to the Trash in the Mac first; "
                               "Insert puts the next one in.")
 

@@ -111,6 +111,7 @@ class MachineType:
     icount: bool                 # "Run at real-machine speed" on by default
     easc: bool                   # has the "easc" machine property
     floppy: bool = True          # QEMU emulates its floppy drives
+    floppy_drives: int = 2       # internal and external; 1: internal only
     onboard_nic: bool = True     # built-in Ethernet (-nic model=nic_model)
     nic_model: str = "dp83932"   # the built-in Ethernet: SONIC, or the AV's MACE
     pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its expansion slot takes
@@ -155,11 +156,11 @@ MACHINES: dict[str, MachineType] = {
                         scsi_buses=2, host_disk=True),
     # The 840AV: 40 MHz, MACE Ethernet, three NuBus slots, 1 MB of VRAM
     # (2 MB with the upgrade: millions of colours up to 832 x 624). RAM in
-    # 16 MB banks plus at most one of 4 or 8 MB. Its floppy controller is
-    # not emulated yet.
+    # 16 MB banks plus at most one of 4 or 8 MB. One floppy drive, on the
+    # New Age controller: no external floppy port.
     "q840av": MachineType("q840av", "Macintosh Quadra 840AV", 64, 128,
                           (8, 16, 24, 32, 40, 48, 64, 72, 96, 128), "640x480",
-                          icount=False, easc=False, floppy=False,
+                          icount=False, easc=False, floppy_drives=1,
                           nic_model="mace",
                           pds_cards=("nubus-ethernet",), slot_kind="NuBus",
                           host_disk=True, ram_exact=True,

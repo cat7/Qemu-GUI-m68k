@@ -244,7 +244,7 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
             argv += _scsi_args(s, machine_dir, platform)
 
     if systems.machine_type(m.machine).floppy:
-        for index in range(model.FLOPPY_DRIVES):
+        for index in range(systems.machine_type(m.machine).floppy_drives):
             fd = m.floppies[index] if index < len(m.floppies) else None
             if fd and fd.file:
                 argv += _floppy_args(index, fd, machine_dir, platform)
