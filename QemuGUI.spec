@@ -105,5 +105,8 @@ else:
             # video input is set to it; without this text macOS stops it.
             'NSCameraUsageDescription':
                 'The Quadra 840AV\'s video input shows your camera.',
+            # Likewise for the microphone, while an AV Mac records sound.
+            'NSMicrophoneUsageDescription':
+                'The Quadra 840AV records sound from your microphone.',
         },
     )
