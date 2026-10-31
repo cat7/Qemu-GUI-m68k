@@ -74,13 +74,14 @@ def _speed_value(label: str, fallback: int) -> int:
 
 
 def _vram_label(kb: int) -> str:
-    return f"{kb} KB"
+    return f"{kb // 1024} MB" if kb >= 1024 and kb % 1024 == 0 else f"{kb} KB"
 
 
 def _vram_value(label: str) -> int:
     try:
-        return int(label.split()[0])
-    except (IndexError, ValueError):
+        n, unit = label.split()[:2]
+        return int(n) * (1024 if unit == "MB" else 1)
+    except ValueError:
         return 0
 
 class FilePicker:

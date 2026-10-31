@@ -2,7 +2,8 @@
 
 A portable launcher for the 68k Macintosh machines of `qemu-system-m68k`:
 the Macintosh Quadra 800 (`q800`), Quadra 700 (`q700`), Quadra 900 (`q900`),
-Quadra 950 (`q950`), LC 475 (`lc475`), LC (`maclc`), LC II (`maclc2`),
+Quadra 950 (`q950`), Quadra 840AV (`q840av`), LC 475 (`lc475`), LC
+(`maclc`), LC II (`maclc2`),
 LC III (`maclc3`), Macintosh II (`macii`), IIx (`maciix`), IIcx (`maciicx`)
 and IIfx (`maciifx`). Needs real Apple ROMs. The program must sit in the same
 folder as `qemu-system-m68k` (and `qemu-img`); machines are kept in a
@@ -26,19 +27,25 @@ and its floppy drives may not work.
   Quadra 900 uses the same ROM as the 700; the Quadra 950 has its own,
   which also runs the 700 and 900.)
 - Memory (`-m`): up to Apple's maximum: 136 MB on the Quadra 800, 68 MB on
-  the Quadra 700, 256 MB on the Quadra 900 and 950. The LC 475's is 36 MB,
+  the Quadra 700, 256 MB on the Quadra 900 and 950, 128 MB on the 840AV
+  (in 16 MB banks, plus at most one of 4 or 8 MB). The LC 475's is 36 MB,
   but its ROM's memory sizing hangs at 36 MB, so 32 MB for now. Macintosh
   II: 1 to 8 MB. IIx, IIcx and IIfx: 4 to 128 MB. The LCs take only the
   sizes their soldered RAM and SIMMs make: LC 2, 4, 6 or 10 MB; LC II 4, 6
   or 8 MB (10 MB does not work yet); LC III 4, 5, 6, 8, 12, 20 or 36 MB.
-- Video memory (Display tab, LCs only): what Apple fitted, or the VRAM
-  SIMM. LC and LC II: 256 KB (640 × 480 in 16 colours) or 512 KB (256
+- Video memory (Display tab, LCs and 840AV): what Apple fitted, or the
+  VRAM upgrade. Quadra 840AV: 1 MB (thousands of colours at 640 × 480) or
+  2 MB (millions up to 832 × 624). LC and LC II: 256 KB (640 × 480 in 16 colours) or 512 KB (256
   colours, and thousands on the 12" RGB). LC III: 512 KB or 768 KB
   (thousands at 640 × 480). The LC and LC II sense the 12", 13" and 15"
-  Apple monitors; the LC III also the 16" and VGA.
+  Apple monitors; the LC III also the 16" and VGA; the 840AV the 12", 13",
+  15", 16", 19" and 21".
 - Quadra 900 and IIfx: keyboard, mouse and floppy drive go through the
   emulated SWIM I/O processor. LC 475: no built-in
   Ethernet, 1 MB of video memory, keyboard, mouse and clock through Cuda.
+- Quadra 840AV: built-in MACE Ethernet (`-nic ...,model=mace`), three
+  NuBus slots. Its floppy controller is not emulated, and neither is the
+  DSP that Mac OS plays its sounds through: only the startup chime plays.
 - Macintosh II, IIx, IIcx and IIfx: no built-in video; QEMU puts its own
   NuBus video card in slot 9 (any of the listed screen sizes, 1 to 32 bits
   per pixel). No built-in Ethernet. They need real-machine speed. The Mac II takes
@@ -49,7 +56,7 @@ and its floppy drives may not work.
   "Sonic 16" driver. It shows up as "Ethernet" in the AppleTalk and TCP/IP
   control panels. On the LC (68020) it needs classic AppleTalk and MacTCP,
   as Open Transport needs a 68030.
-- NuBus slot (Mac II, IIx, IIcx, IIfx, Machine tab): Empty or the Ethernet
+- NuBus slot (Mac II, IIx, IIcx, IIfx and Quadra 840AV, Machine tab): Empty or the Ethernet
   NB card (`-device nubus-ethernet`), a SONIC card with its own buffer RAM
   that Mac OS drives with its "Sonic 16 NB" driver. It goes in the first
   free slot after the video card. Open Transport needs a 68030, so on the

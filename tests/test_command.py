@@ -363,6 +363,16 @@ class Network_(unittest.TestCase):
             self.assertIn("mac-pds-ethernet,netdev=net0,mac=08:00:07:01:02:03",
                           option(argv_for(m), "-device"), mid)
 
+    def test_840av_built_in_ethernet_and_vram(self):
+        m = model.new_machine("A", "q840av")
+        m.network = Network(mac="08:00:07:01:02:03", mode="user")
+        argv = argv_for(m)
+        self.assertEqual(option(argv, "-nic"), ["user,model=mace,mac=08:00:07:01:02:03"])
+        self.assertIn("mac-civic.vram-size=1048576", option(argv, "-global"))
+        m.vram_kb = 2048
+        self.assertIn("mac-civic.vram-size=2097152", option(argv_for(m), "-global"))
+        self.assertFalse([d for d in option(argv, "-drive") if "if=floppy" in d])
+
     def test_card_ignored_on_a_model_without_the_slot(self):
         m = model.new_machine("A", "q800")
         m.pds = "ethernet"

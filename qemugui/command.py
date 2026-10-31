@@ -21,7 +21,6 @@ from .systems import DEFAULT_MOUSE_SPEED, ICOUNT_OPTION
 HEADER_NOTE = "Written by Qemu-system-m68k GUI. Do not edit."
 
 AUDIODEV_ID = "snd"
-NIC_MODEL = "dp83932"            # the Quadra's built-in SONIC Ethernet
 
 
 def qopt(value: str) -> str:
@@ -81,12 +80,12 @@ def _backend(net) -> str:
     raise ValueError(f"unknown network mode {net.mode!r}")
 
 
-def nic_option(net) -> str:
-    """The -nic value. The onboard SONIC is only wired up through a -nic
-    with model=dp83932."""
+def nic_option(net, nic_model: str = "dp83932") -> str:
+    """The -nic value. The built-in Ethernet (the Quadras' SONIC, the AV's
+    MACE) is only wired up through a -nic with its model."""
     if net.mode == "none":
         return "none"
-    tail = f"model={NIC_MODEL},mac={net.mac}"
+    tail = f"model={nic_model},mac={net.mac}"
     if net.mode == "user":
         fwd = "".join(f",hostfwd={r.proto}::{r.host_port}-:{r.guest_port}"
                       for r in net.hostfwd if not r.empty)
@@ -105,7 +104,7 @@ def network_args(m: Machine, qemu_dir: str = "", platform: str = paths.HOST_PLAT
     card = systems.pds_card(m.pds)
     if card is None or card.id not in m.type.pds_cards:
         if m.type.onboard_nic:
-            return ["-nic", nic_option(m.network)]
+            return ["-nic", nic_option(m.network, m.type.nic_model)]
         return ["-nic", "none"]
     device = card.device
     if model.combined_card(m):
@@ -234,7 +233,7 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
     argv += ["-rtc", "base=localtime"]
     argv += ["-g", m.screen]
     if model.vram_kb(m):
-        argv += ["-global", f"mac-lc-video.vram-size={model.vram_kb(m) * 1024}"]
+        argv += ["-global", f"{m.type.vram_device}.vram-size={model.vram_kb(m) * 1024}"]
     argv += ["-display", display_option(m)]
     argv += ["-audiodev", f"{audio},id={AUDIODEV_ID}"]
     argv += network_args(m, qd, platform)

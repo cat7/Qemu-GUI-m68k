@@ -76,6 +76,15 @@ LC3_MONITORS: tuple[Screen, ...] = (
     Screen(640, 870, 'Apple 15" Portrait (greyscale)'),
     Screen(832, 624, 'Apple 16" Color'),
 )
+# The Quadra 840AV's Civic also senses the 19" monitor
+AV_MONITORS: tuple[Screen, ...] = (
+    Screen(512, 384, 'Apple 12" RGB'),
+    Screen(640, 480, 'Apple 13" RGB'),
+    Screen(640, 870, 'Apple 15" Portrait (greyscale)'),
+    Screen(832, 624, 'Apple 16" Color'),
+    Screen(1024, 768, 'Apple 19" Color'),
+    Screen(1152, 870, 'Apple 21" Color'),
+)
 # The Mac II family has no built-in video: QEMU fits its own NuBus
 # video card in slot 9, which starts in any of these sizes.
 SCREENS: dict[str, tuple[Screen, ...]] = {
@@ -84,6 +93,7 @@ SCREENS: dict[str, tuple[Screen, ...]] = {
     "maclc": LC_MONITORS,
     "maclc2": LC_MONITORS,
     "maclc3": LC3_MONITORS,
+    "q840av": AV_MONITORS,
 }
 
 # Older records named sizes that are no monitor: the screen they really got
@@ -101,7 +111,8 @@ class MachineType:
     icount: bool                 # "Run at real-machine speed" on by default
     easc: bool                   # has the "easc" machine property
     floppy: bool = True          # QEMU emulates its floppy drives
-    onboard_nic: bool = True     # built-in SONIC Ethernet (-nic model=dp83932)
+    onboard_nic: bool = True     # built-in Ethernet (-nic model=nic_model)
+    nic_model: str = "dp83932"   # the built-in Ethernet: SONIC, or the AV's MACE
     pds_cards: tuple[str, ...] = ()   # PDS_CARDS keys its expansion slot takes
     slot_kind: str = "PDS"       # what that slot is: "PDS" or "NuBus"
     scsi_buses: int = 1          # 2: also an external SCSI bus (SCSI_BUSES)
@@ -113,8 +124,9 @@ class MachineType:
     # SIMMs of fixed sizes)
     ram_exact: bool = False
     # Built-in video memory in KB the model can have (-global
-    # mac-lc-video.vram-size); the first is what Apple fitted
+    # VRAM_DEVICE.vram-size); the first is what Apple fitted
     vram_choices: tuple[int, ...] = ()
+    vram_device: str = "mac-lc-video"
 
     @property
     def ram_min(self) -> int:
@@ -141,6 +153,17 @@ MACHINES: dict[str, MachineType] = {
                         (8, 16, 20, 32, 64, 128, 256), "832x624",
                         icount=False, easc=False,
                         scsi_buses=2, host_disk=True),
+    # The 840AV: 40 MHz, MACE Ethernet, three NuBus slots, 1 MB of VRAM
+    # (2 MB with the upgrade: millions of colours up to 832 x 624). RAM in
+    # 16 MB banks plus at most one of 4 or 8 MB. Its floppy controller is
+    # not emulated yet.
+    "q840av": MachineType("q840av", "Macintosh Quadra 840AV", 64, 128,
+                          (8, 16, 24, 32, 40, 48, 64, 72, 96, 128), "640x480",
+                          icount=False, easc=False, floppy=False,
+                          nic_model="mace",
+                          pds_cards=("nubus-ethernet",), slot_kind="NuBus",
+                          host_disk=True, ram_exact=True,
+                          vram_choices=(1024, 2048), vram_device="mac-civic"),
     # Apple's maximum is 36 MB, but the ROM's memory sizing hangs with
     # 36 MB of QEMU's flat RAM, so 32 for now
     "lc475": MachineType("lc475", "Macintosh LC 475", 32, 32,

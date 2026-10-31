@@ -29,12 +29,12 @@ class TheModelTable(unittest.TestCase):
 
     def test_all_models_are_offered(self):
         self.assertEqual(systems.machine_ids(),
-                         ["q800", "q700", "q900", "q950", "lc475", "maclc", "maclc2",
-                          "maclc3", "macii", "maciix", "maciicx", "maciifx"])
+                         ["q800", "q700", "q900", "q950", "q840av", "lc475", "maclc",
+                          "maclc2", "maclc3", "macii", "maciix", "maciicx", "maciifx"])
         self.assertEqual(systems.machine_labels(),
                          ["Macintosh Quadra 800", "Macintosh Quadra 700",
                           "Macintosh Quadra 900", "Macintosh Quadra 950",
-                          "Macintosh LC 475", "Macintosh LC", "Macintosh LC II",
+                          "Macintosh Quadra 840AV", "Macintosh LC 475", "Macintosh LC", "Macintosh LC II",
                           "Macintosh LC III", "Macintosh II", "Macintosh IIx",
                           "Macintosh IIcx", "Macintosh IIfx"])
 
@@ -52,7 +52,7 @@ class TheModelTable(unittest.TestCase):
         """Apple's maximums (the LC 475's 36 MB does not boot yet)."""
         self.assertEqual({k: t.ram_max for k, t in systems.MACHINES.items()},
                          {"q800": 136, "q700": 68, "q900": 256, "q950": 256,
-                          "lc475": 32, "maclc": 10, "maclc2": 8, "maclc3": 36,
+                          "q840av": 128, "lc475": 32, "maclc": 10, "maclc2": 8, "maclc3": 36,
                           "macii": 8, "maciix": 128, "maciicx": 128,
                           "maciifx": 128})
         for t in systems.MACHINES.values():
@@ -76,7 +76,7 @@ class TheModelTable(unittest.TestCase):
         self.assertIsNone(systems.screen_by_id("q700", "800x600"))
         self.assertTrue(all(s.monitor for s in systems.SCREENS["q700"]))
         for mid in systems.machine_ids():
-            if not mid.startswith("maclc"):
+            if not mid.startswith("maclc") and mid != "q840av":
                 self.assertIs(systems.SCREENS[mid], systems.MONITORS)
 
     def test_the_lc_monitors(self):
@@ -86,6 +86,18 @@ class TheModelTable(unittest.TestCase):
         self.assertIs(systems.SCREENS["maclc2"], systems.SCREENS["maclc"])
         self.assertEqual([s.id for s in systems.SCREENS["maclc3"]],
                          ["512x384", "640x480", "640x870", "832x624"])
+
+    def test_the_840av(self):
+        """Civic senses the 19\" monitor too; MACE, Civic's VRAM, no floppy."""
+        self.assertEqual([s.id for s in systems.SCREENS["q840av"]],
+                         ["512x384", "640x480", "640x870", "832x624", "1024x768",
+                          "1152x870"])
+        t = systems.MACHINES["q840av"]
+        self.assertEqual((t.nic_model, t.vram_device, t.floppy, t.slot_kind),
+                         ("mace", "mac-civic", False, "NuBus"))
+        for mb in t.ram_choices:
+            # 16 MB banks, then at most one of 4 or 8 MB
+            self.assertIn(mb % 16, (0, 4, 8), mb)
 
     def test_the_lcs_take_exact_memory_sizes(self):
         m = model.new_machine("LC", "maclc3")
@@ -171,7 +183,7 @@ class Record(unittest.TestCase):
         self.assertEqual(Machine.from_json(m.to_json()), m)
 
     def test_an_unknown_model_falls_back_to_the_default(self):
-        self.assertEqual(Machine.from_dict({"machine": "q840av"}).machine, systems.DEFAULT_MACHINE)
+        self.assertEqual(Machine.from_dict({"machine": "q605"}).machine, systems.DEFAULT_MACHINE)
 
     def test_a_bare_record_takes_its_models_defaults(self):
         m = Machine.from_dict({"name": "x", "machine": "q700"})
