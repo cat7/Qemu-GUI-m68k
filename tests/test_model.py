@@ -190,7 +190,7 @@ class Record(unittest.TestCase):
         m = Machine.from_dict({"name": "x", "machine": "q700"})
         self.assertEqual((m.ram_mb, m.rom, m.screen, m.icount, m.pram),
                          (64, "", "832x624", False, "pram.img"))
-        self.assertRegex(m.network.mac, r"^08:00:07:")
+        self.assertEqual(m.network.mac, "08:00:07:12:34:56")
         self.assertEqual(m.floppies, [None, None])
 
     def test_new_machine_fills_no_disk(self):
@@ -200,9 +200,14 @@ class Record(unittest.TestCase):
             self.assertEqual(m.floppies, [None, None])
             self.assertEqual(m.share.folder, "")
 
-    def test_two_new_machines_get_different_addresses(self):
-        macs = {model.new_machine("x", "q800").network.mac for _ in range(20)}
-        self.assertGreater(len(macs), 1)
+    def test_new_machines_get_the_standard_address(self):
+        self.assertEqual(model.new_machine("x", "q800").network.mac,
+                         systems.DEFAULT_MAC)
+
+    def test_a_stored_address_is_kept(self):
+        m = Machine.from_dict({"machine": "q800",
+                               "network": {"mode": "user", "mac": "08:00:07:58:d2:5d"}})
+        self.assertEqual(m.network.mac, "08:00:07:58:d2:5d")
 
 
 class SwitchingModel(unittest.TestCase):
@@ -421,7 +426,7 @@ class DeleteNeverTouchesADiskImage(unittest.TestCase):
             self.assertEqual(lib.load("System 7.5").scsi[0].file,
                              str(new_folder / "System 7.img"))
             copy = lib.duplicate("System 7.5", "System 7.5 copy")
-            self.assertNotEqual(copy.network.mac, m.network.mac)
+            self.assertEqual(copy.network.mac, m.network.mac)
             lib.reset_pram(lib.load("System 7.5"))
             command.write_launcher(m, "/q", str(new_folder), "darwin")
             lib.delete("System 7.5 copy")

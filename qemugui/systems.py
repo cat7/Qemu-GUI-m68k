@@ -31,6 +31,10 @@ RAM_MIN = 4
 
 # Apple's own Ethernet prefix, which the Mac OS network drivers expect.
 MAC_PREFIX = "08:00:07"
+# Every machine's card address unless edited: the same each run, so a
+# router keeps giving it the same IP. Two machines on one network (vmnet)
+# need different ones.
+DEFAULT_MAC = MAC_PREFIX + ":12:34:56"
 
 @dataclass(frozen=True)
 class Screen:

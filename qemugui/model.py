@@ -18,14 +18,13 @@ Three rules this file exists to enforce:
 from __future__ import annotations
 
 import json
-import random
 import re
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
 
 from . import paths, systems
-from .systems import (MACHINES, MAC_PREFIX, RAM_MIN, machine_type, normalise_machine_id,
+from .systems import (DEFAULT_MAC, MACHINES, RAM_MIN, machine_type, normalise_machine_id,
                       normalise_screen_id, screen_by_id)
 
 SCHEMA = 1
@@ -123,13 +122,6 @@ def looks_like_disk_image(name: str) -> bool:
     return Path(name).suffix.lower() in IMAGE_SUFFIXES
 
 
-def random_mac(rng: random.Random | None = None) -> str:
-    """A fresh card address with Apple's prefix. A new machine gets one and
-    keeps it, so the Mac's network settings stay put between runs."""
-    r = rng or random.SystemRandom()
-    return MAC_PREFIX + "".join(f":{r.randrange(256):02x}" for _ in range(3))
-
-
 @dataclass
 class ScsiDrive:
     id: int = 0
@@ -199,7 +191,7 @@ def _port_ok(text: str) -> bool:
 @dataclass
 class Network:
     mode: str = "user"           # none | user | vmnet-bridged | vmnet-shared | vmnet-host | tap
-    mac: str = ""
+    mac: str = DEFAULT_MAC
     ifname: str = ""             # host interface for vmnet-bridged (en0) / tap
     hostfwd: list = field(default_factory=list)
 
@@ -215,9 +207,9 @@ class Network:
     @classmethod
     def from_dict(cls, d: Any) -> "Network":
         if not isinstance(d, dict):
-            return cls(mac=random_mac())
+            return cls()
         rules = d.get("hostfwd")
-        return cls(str(d.get("mode", "user")), str(d.get("mac") or random_mac()),
+        return cls(str(d.get("mode", "user")), str(d.get("mac") or DEFAULT_MAC),
                    str(d.get("ifname", "") or ""),
                    [HostFwd.from_dict(r) for r in rules] if isinstance(rules, list) else [])
 
@@ -499,11 +491,11 @@ class Machine:
 
 def new_machine(name: str, machine_id: str) -> Machine:
     """Seed a record from one of the models: memory, ROM name, screen, speed
-    limit, a fresh card address. No disk, CD or floppy is filled in."""
+    limit, the standard card address. No disk, CD or floppy is filled in."""
     t = machine_type(machine_id)
     return Machine(name=name, machine=t.id, ram_mb=t.ram_mb, rom="", pram=PRAM_NAME,
                    screen=t.screen, display=default_display(), icount=t.icount,
-                   network=Network(mac=random_mac()))
+                   network=Network())
 
 
 def apply_machine_type(m: Machine, machine_id: str) -> None:
@@ -766,8 +758,6 @@ class Library:
         path = self.json_path(name)
         m = Machine.load(path)
         m.name = name  # the folder is authoritative
-        if '"mac"' not in path.read_text(encoding="utf-8"):
-            m.save(path)     # keep the card address it was just given
         return m
 
     def load_all(self) -> list[Machine]:
@@ -825,15 +815,14 @@ class Library:
         return self.json_path(name).is_file()
 
     def duplicate(self, name: str, new_name: str) -> Machine:
-        """Copy the record into a new folder, with a blank PRAM and a card
-        address of its own (two machines with one address confuse a network).
+        """Copy the record into a new folder, with a blank PRAM. The card
+        address is copied too: to run both on one network, edit one.
         Disk images are not copied and not touched: the copy starts out
         pointing at the same image files."""
         if self.exists(new_name):
             raise FileExistsError(f"A machine called '{new_name}' already exists.")
         m = self.load(name)
         m.name = new_name
-        m.network.mac = random_mac()
         self.save(m)
         return m
 

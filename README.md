@@ -98,8 +98,9 @@ and its floppy drives may not work.
   about three times too fast.
 - Mouse speed (`-global adb-mouse.speed=N`, percent of the host's motion,
   50 by default): macOS and Mac OS both accelerate the pointer.
-- Network: slirp or vmnet (`-nic ...,model=dp83932`) with a per-machine
-  card address under Apple's `08:00:07` prefix; port forwarding with slirp.
+- Network: slirp or vmnet (`-nic ...,model=dp83932`) with the card address
+  `08:00:07:12:34:56` (Apple's prefix), editable per machine: give each its
+  own when several share a vmnet network. Port forwarding with slirp.
   With an Ethernet card (the LCs, Mac II family) the same settings become
   `-netdev ...,id=net0 -device mac-pds-ethernet,netdev=net0,mac=...`
   (`nubus-ethernet` on the Mac II family).

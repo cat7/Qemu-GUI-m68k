@@ -532,8 +532,6 @@ class MachineEditor(tk.Toplevel):
         self.mac_var = tk.StringVar()
         ttk.Entry(f, textvariable=self.mac_var, width=22).grid(
             row=3, column=1, sticky="w", pady=(6, 0))
-        ttk.Button(f, text="New address", command=lambda: self.mac_var.set(model.random_mac())
-                   ).grid(row=3, column=2, sticky="w", padx=6, pady=(6, 0))
         ff = ttk.Frame(f)
         ff.grid(row=4, column=0, columnspan=3, sticky="w", pady=(10, 0))
         ttk.Label(ff, text="Port forwarding", font=("", 0, "bold")).grid(
