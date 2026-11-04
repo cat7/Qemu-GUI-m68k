@@ -17,7 +17,7 @@ from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
 from . import model, paths, systems
-from .model import Machine, ScsiDrive, Floppy, Network, Share
+from .model import Machine, ScsiDrive, Floppy, Network, Share, Printer
 from .systems import ICOUNT_OPTION, machine_labels, machine_by_label, machine_type
 from .ui_dialogs import show_validation, CreateDiskDialog, ToolTip
 
@@ -243,6 +243,7 @@ class MachineEditor(tk.Toplevel):
         self._build_drives()
         self._build_net_audio()
         self._build_share()
+        self._build_printer()
         self._build_advanced()
 
         bar = ttk.Frame(self)
@@ -654,6 +655,58 @@ class MachineEditor(tk.Toplevel):
         if d:
             self.share_folder_var.set(d)
 
+    def _build_printer(self):
+        f = self._tab("Printer")
+        f.columnconfigure(1, weight=1)
+        self._heading(f, 0, "Host Printer")
+        self.printer_target = tk.StringVar(value="none")
+        labels = model.PRINTER_TARGETS
+        self.printer_rbs = {}
+        for row, key in enumerate(("none", "default", "queue", "pdf"), start=1):
+            rb = ttk.Radiobutton(f, text=labels[key] + (":" if key in ("queue", "pdf") else ""),
+                                 variable=self.printer_target, value=key,
+                                 command=self._printer_changed)
+            rb.grid(row=row, column=0, sticky="w", pady=4)
+            self.printer_rbs[key] = rb
+        self.printer_queue_var = tk.StringVar()
+        self.printer_queue_box = ttk.Combobox(f, textvariable=self.printer_queue_var,
+                                              values=model.host_printers(), width=38)
+        self.printer_queue_box.grid(row=3, column=1, sticky="ew", pady=4)
+        self.printer_folder_var = tk.StringVar()
+        self.printer_folder_entry = ttk.Entry(f, textvariable=self.printer_folder_var, width=40)
+        self.printer_folder_entry.grid(row=4, column=1, sticky="ew", pady=4)
+        self.printer_folder_button = ttk.Button(f, text="Choose…",
+                                                command=self._choose_printer_folder)
+        self.printer_folder_button.grid(row=4, column=2, sticky="w", padx=4, pady=4)
+        self.printer_note = ttk.Label(f, text="", foreground=GREY,
+                                      wraplength=EDITOR_WIDTH - 60, justify="left")
+        self.printer_note.grid(row=5, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        self._printer_changed()
+
+    def _printer_changed(self):
+        t = machine_type(getattr(self, "shown_type", None) or self.machine_id)
+        on = t.host_disk
+        for key, rb in self.printer_rbs.items():
+            rb.config(state="normal" if on or key == "none" else "disabled")
+        target = self.printer_target.get()
+        self.printer_queue_box.config(state="normal" if on and target == "queue" else "disabled")
+        folder = "normal" if on and target == "pdf" else "disabled"
+        self.printer_folder_entry.config(state=folder)
+        self.printer_folder_button.config(state=folder)
+        if not on:
+            note = f"Not on the {t.label}."
+        else:
+            note = ("In the Mac, put the Host Printer file in the System Folder "
+                    "(it goes in Extensions) and choose Host Printer in the Chooser. "
+                    "Pages are sent to the host as a PDF.")
+        self.printer_note.config(text=note)
+
+    def _choose_printer_folder(self):
+        start = paths.browse_start_dir(self.printer_folder_var.get(), None)
+        d = filedialog.askdirectory(parent=self, initialdir=str(start))
+        if d:
+            self.printer_folder_var.set(d)
+
     def _build_advanced(self):
         f = self._tab("Advanced")
         f.columnconfigure(0, weight=1)
@@ -706,6 +759,8 @@ class MachineEditor(tk.Toplevel):
         self._update_net_hint()
         if hasattr(self, "share_volume_cb"):
             self._share_changed()
+        if hasattr(self, "printer_rbs"):
+            self._printer_changed()
 
     def _set_pds(self, card_id: str):
         card = systems.pds_card(card_id)
@@ -799,6 +854,11 @@ class MachineEditor(tk.Toplevel):
         self.share_volume.set(m.share.volume)
         self.share_volume_var.set(m.share.volume_name)
         self._share_changed()
+        self.printer_target.set(m.printer.target if m.printer.target in model.PRINTER_TARGETS
+                                else "none")
+        self.printer_queue_var.set(m.printer.queue)
+        self.printer_folder_var.set(m.printer.folder)
+        self._printer_changed()
         self.extra_var.set(m.extra_args)
 
     def collect(self) -> Machine:
@@ -836,6 +896,8 @@ class MachineEditor(tk.Toplevel):
                         self.share_password_var.get(), self.share_scope.get(),
                         self.share_ftp.get(), self.share_volume.get(),
                         self.share_volume_var.get().strip() or model.SHARE_DEFAULT_VOLUME)
+        m.printer = Printer(self.printer_target.get(), self.printer_queue_var.get().strip(),
+                            self.printer_folder_var.get().strip())
         m.extra_args = self.extra_var.get().strip()
         return m
 

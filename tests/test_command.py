@@ -519,5 +519,67 @@ class HostDisk(unittest.TestCase):
         self.assertFalse([d for d in option(argv_for(m), "-device") if "virtio" in d])
 
 
+class HostPrinter(unittest.TestCase):
+    def printer(self, mid="q800", target="default", **kw):
+        m = model.new_machine("A", mid)
+        m.printer = model.Printer(target, **kw)
+        return m
+
+    def test_default_printer_on_the_card(self):
+        devices = option(argv_for(self.printer()), "-device")
+        self.assertIn(f"nubus-virtio-mmio,romfile={QD}/declrom", devices)
+        self.assertIn("virtio-print-device", devices)
+        self.assertLess(devices.index(f"nubus-virtio-mmio,romfile={QD}/declrom"),
+                        devices.index("virtio-print-device"))
+
+    def test_queue(self):
+        devices = option(argv_for(self.printer(target="queue", queue="HP,1")), "-device")
+        self.assertIn("virtio-print-device,printer=HP,,1", devices)
+
+    def test_pdf_folder(self):
+        devices = option(argv_for(self.printer(target="pdf", folder="/Users/me/PDF, new")),
+                         "-device")
+        self.assertIn("virtio-print-device,save-to=/Users/me/PDF,, new", devices)
+
+    def test_with_the_disk_one_card(self):
+        m = self.printer()
+        m.share = model.Share("/Users/me/Mac Share", ftp=False, volume=True)
+        devices = option(argv_for(m), "-device")
+        self.assertEqual(len([d for d in devices if d.startswith("nubus-virtio-mmio")]), 1)
+        self.assertTrue([d for d in devices if d.startswith("virtio-9p-device")])
+        self.assertIn("virtio-print-device", devices)
+
+    def test_lc475_ethernet_card_carries_it(self):
+        m = self.printer("lc475")
+        m.pds = "ethernet"
+        devices = option(argv_for(m), "-device")
+        self.assertFalse([d for d in devices if d.startswith("nubus-virtio-mmio")])
+        card = [d for d in devices if d.startswith("mac-pds-ethernet-virtio,")]
+        self.assertEqual(len(card), 1)
+        self.assertIn("declrom-pds", card[0])
+        self.assertLess(devices.index(card[0]), devices.index("virtio-print-device"))
+        self.assertEqual(option(argv_for(m), "-fsdev"), [])
+
+    def test_off(self):
+        devices = option(argv_for(self.printer(target="none")), "-device")
+        self.assertFalse([d for d in devices if "virtio" in d])
+
+    def test_round_trip(self):
+        m = self.printer(target="queue", queue="HP_Color_LaserJet")
+        again = model.Machine.from_json(m.to_json())
+        self.assertEqual(again.printer, m.printer)
+        self.assertEqual(model.Machine.from_dict({"machine": "q800"}).printer.target, "none")
+
+    def test_validation(self):
+        def errors(m, platform="darwin"):
+            return model.validate(m, None, platform=platform, check_files=False)[0]
+        self.assertEqual(errors(self.printer()), [])
+        self.assertTrue(errors(self.printer(target="queue")))
+        self.assertTrue(errors(self.printer(target="pdf", folder="/no/such/folder")))
+        self.assertTrue(errors(self.printer(), platform="win32"))
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(errors(self.printer(target="pdf", folder=d), platform="win32"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

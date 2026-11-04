@@ -100,7 +100,8 @@ def nic_option(net, nic_model: str = "dp83932") -> str:
 def network_args(m: Machine, qemu_dir: str = "", platform: str = paths.HOST_PLATFORM) -> list[str]:
     """-nic for the built-in Ethernet; a card in the PDS or NuBus slot is a -device,
     with a -netdev behind it when the network is on. On the LC 475 with the
-    shared folder disk on, its Ethernet card carries the virtio devices too."""
+    shared folder disk or the Host Printer on, its Ethernet card carries the
+    virtio devices too."""
     card = systems.pds_card(m.pds)
     if card is None or card.id not in m.type.pds_cards:
         if m.type.onboard_nic:
@@ -253,8 +254,8 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
             else:
                 argv += _empty_floppy_args(index)
 
-    if host_disk_on(m):
-        argv += host_disk_args(m, qd, platform)
+    if virtio_card_on(m):
+        argv += virtio_args(m, qd, platform)
 
     argv += qmp_args(qmp if qmp is not None else qmp_port(m))
     argv += split_extra_args(m.extra_args, platform)
@@ -264,29 +265,55 @@ def build_argv(m: Machine, qemu_dir: str, machine_dir: str,
 NINEP_FSDEV = "hostshare"
 
 
-def host_disk_on(m: Machine) -> bool:
-    """The shared folder goes in as a disk (and the machine can take it)."""
+def virtio_card_on(m: Machine) -> bool:
+    """The shared folder disk or the Host Printer is on (and the machine can
+    take classicvirtio's card)."""
     t = m.type
-    if not (m.share.volume_on and t.host_disk):
+    if not (model.uses_virtio_card(m) and t.host_disk):
         return False
     return not (t.slot_kind == "PDS" and m.pds) or model.combined_card(m) is not None
 
 
-def host_disk_args(m: Machine, qemu_dir: str, platform: str) -> list[str]:
-    """The shared folder as a Mac disk: classicvirtio's NuBus card (QEMU
-    puts it in the first free slot) with a virtio-9p device on it. Mac OS
-    gets file types and resource forks through macos_compat. On the LC 475
-    with its Ethernet card the virtio devices are on that card instead
-    (network_args)."""
-    folder = os.path.expanduser(m.share.folder.strip())
-    card = []
+def host_disk_on(m: Machine) -> bool:
+    """The shared folder goes in as a disk (and the machine can take it)."""
+    return m.share.volume_on and virtio_card_on(m)
+
+
+def printer_on(m: Machine) -> bool:
+    """The Host Printer is there (and the machine can take it)."""
+    return m.printer.on and virtio_card_on(m)
+
+
+def printer_device(m: Machine) -> str:
+    """virtio-print-device, printing on the chosen host printer or saving PDFs."""
+    pr = m.printer
+    if pr.target == "queue":
+        return f"virtio-print-device,printer={qopt(pr.queue.strip())}"
+    if pr.target == "pdf":
+        folder = os.path.expanduser(pr.folder.strip())
+        return f"virtio-print-device,save-to={qopt(folder)}"
+    return "virtio-print-device"
+
+
+def virtio_args(m: Machine, qemu_dir: str, platform: str) -> list[str]:
+    """classicvirtio's NuBus card (QEMU puts it in the first free slot) with
+    the shared folder as a Mac disk (virtio-9p; Mac OS gets file types and
+    resource forks through macos_compat) and the Host Printer on it. On the
+    LC 475 with its Ethernet card the virtio devices are on that card
+    instead (network_args)."""
+    args = []
     if not model.combined_card(m):
         rom = paths.join_path(qemu_dir, model.DECLROM_NAME, platform)
-        card = ["-device", f"nubus-virtio-mmio,romfile={qopt(rom)}"]
-    return card + ["-device", f"virtio-9p-device,fsdev={NINEP_FSDEV},"
-                              f"mount_tag={qopt(m.share.volume_name.strip())}",
-                   "-fsdev", f"local,id={NINEP_FSDEV},path={qopt(folder)},"
-                             "security_model=none,macos_compat=on"]
+        args = ["-device", f"nubus-virtio-mmio,romfile={qopt(rom)}"]
+    if host_disk_on(m):
+        folder = os.path.expanduser(m.share.folder.strip())
+        args += ["-device", f"virtio-9p-device,fsdev={NINEP_FSDEV},"
+                            f"mount_tag={qopt(m.share.volume_name.strip())}",
+                 "-fsdev", f"local,id={NINEP_FSDEV},path={qopt(folder)},"
+                           "security_model=none,macos_compat=on"]
+    if printer_on(m):
+        args += ["-device", printer_device(m)]
+    return args
 
 
 def group_options(argv: list[str]) -> list[list[str]]:

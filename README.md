@@ -114,6 +114,12 @@ and its floppy drives may not work.
 - Shared folder over FTP (pyftpdlib): with slirp the Mac reaches it at
   `ftp://10.0.2.2/` (`:2121` when port 21 is taken), passive mode, names in
   Mac Roman.
+- Host Printer (every model): `virtio-print-device` on classicvirtio's
+  card, which also carries the shared folder disk when both are on. The
+  Printer tab picks the host's default printer, a named one (`lpstat -e`),
+  or a folder to save PDFs in (`save-to=`; the only choice on Windows).
+  In the Mac, the Host Printer file from classicvirtio goes in the System
+  Folder and is chosen in the Chooser.
 - Shared folder as a disk (every model): the folder appears in the
   Finder, read and write, with file types and resource forks. It uses
   classicvirtio's NuBus card (`-device nubus-virtio-mmio`, in the first

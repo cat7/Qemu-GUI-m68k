@@ -366,6 +366,45 @@ def vram_kb(m: "Machine") -> int:
     return m.vram_kb if m.vram_kb in t.vram_choices else t.vram_choices[0]
 
 
+# The Host Printer (classicvirtio's printer driver + QEMU's virtio-print-device)
+PRINTER_TARGETS = {"none": "Off", "default": "The host's default printer",
+                   "queue": "A host printer", "pdf": "Save PDFs in a folder"}
+
+
+@dataclass
+class Printer:
+    target: str = "none"         # a PRINTER_TARGETS key
+    queue: str = ""              # target "queue": the host's name for it (lpstat -e)
+    folder: str = ""             # target "pdf"
+
+    def to_dict(self) -> dict:
+        return {"target": self.target, "queue": self.queue, "folder": self.folder}
+
+    @classmethod
+    def from_dict(cls, d: Any) -> "Printer":
+        if not isinstance(d, dict):
+            return cls()
+        return cls(str(d.get("target", "none") or "none"),
+                   str(d.get("queue", "") or ""),
+                   str(d.get("folder", "") or ""))
+
+    @property
+    def on(self) -> bool:
+        return self.target != "none"
+
+
+def host_printers(platform: str = paths.HOST_PLATFORM) -> list[str]:
+    """The host's printer queues, by the names CUPS knows them by."""
+    if paths.is_windows(platform):
+        return []
+    import subprocess
+    try:
+        r = subprocess.run(["lpstat", "-e"], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [line.strip() for line in r.stdout.splitlines() if line.strip()]
+
+
 @dataclass
 class Machine:
     name: str = "New machine"
@@ -387,6 +426,7 @@ class Machine:
     scsi: list = field(default_factory=list)
     floppies: list = field(default_factory=lambda: [None] * FLOPPY_DRIVES)
     share: Share = field(default_factory=Share)
+    printer: Printer = field(default_factory=Printer)
     extra_args: str = ""
     notes: str = ""
 
@@ -417,6 +457,7 @@ class Machine:
             "scsi": [d.to_dict() for d in sorted(self.scsi, key=lambda s: (s.bus, s.id))],
             "floppies": [f.to_dict() if f else None for f in self.floppies],
             "share": self.share.to_dict(),
+            "printer": self.printer.to_dict(),
             "extra_args": self.extra_args,
             "notes": self.notes,
         }
@@ -449,6 +490,7 @@ class Machine:
             scsi=scsi,
             floppies=floppies,
             share=Share.from_dict(d.get("share")),
+            printer=Printer.from_dict(d.get("printer")),
             extra_args=str(d.get("extra_args", "")),
             notes=str(d.get("notes", "")),
         )
@@ -644,6 +686,21 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
         elif t.slot_kind == "PDS" and m.pds and not combined_card(m):
             errors.append(f"The shared folder disk needs the {t.label}'s {t.slot_kind} "
                           "slot: take the card out of it (Machine tab), or turn the disk off.")
+    pr = m.printer
+    if pr.target not in PRINTER_TARGETS:
+        errors.append(f"'{pr.target}' is not a printer setting.")
+    elif pr.on:
+        if not t.host_disk:
+            errors.append(f"The {t.label} cannot use the Host Printer.")
+        elif t.slot_kind == "PDS" and m.pds and not combined_card(m):
+            errors.append(f"The Host Printer needs the {t.label}'s {t.slot_kind} "
+                          "slot: take the card out of it (Machine tab), or turn the printer off.")
+        if pr.target == "queue" and not pr.queue.strip():
+            errors.append("Choose which host printer to print on.")
+        if pr.target == "pdf" and not Path(pr.folder.strip()).expanduser().is_dir():
+            errors.append("The folder for the PDFs is not a folder that exists.")
+        if pr.target in ("default", "queue") and paths.is_windows(platform):
+            errors.append("On Windows the Host Printer can only save PDFs in a folder.")
 
     seen_ids = set()
     for s in m.scsi:
@@ -667,10 +724,11 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
             rom = paths.join_path(qd, m.rom, platform)
             if not Path(rom).is_file():
                 warnings.append(f"The Mac's ROM is missing: {rom}")
-        if qd and paths.has_qemu(qd, platform) and share.volume_on:
+        if qd and paths.has_qemu(qd, platform) and uses_virtio_card(m):
             rom_name = host_disk_rom_name(m)
+            what = "shared folder disk" if share.volume_on else "Host Printer"
             if not Path(paths.join_path(qd, rom_name, platform)).is_file():
-                warnings.append(f"The shared folder disk needs the file {rom_name} "
+                warnings.append(f"The {what} needs the file {rom_name} "
                                 "next to the emulator; it is missing.")
         for label, f in _image_files(m):
             if not f:
@@ -933,12 +991,17 @@ def _repoint_images(m: Machine, moved: list[tuple[Path, Path]]) -> None:
     m.pram = fixed(m.pram)
 
 
+def uses_virtio_card(m: "Machine") -> bool:
+    """The shared folder disk or the Host Printer is on: classicvirtio's card."""
+    return m.share.volume_on or m.printer.on
+
+
 def combined_card(m: "Machine") -> "systems.PdsCard | None":
-    """The card in a single PDS slot that carries the shared folder disk as
-    well (the LC 475's Ethernet card), when the disk is on."""
+    """The card in a single PDS slot that carries the virtio devices as well
+    (the LC 475's Ethernet card), when the disk or the printer is on."""
     t = m.type
     card = systems.pds_card(m.pds)
-    if (m.share.volume_on and t.host_disk and t.slot_kind == "PDS" and card
+    if (uses_virtio_card(m) and t.host_disk and t.slot_kind == "PDS" and card
             and card.id in t.pds_cards and card.host_disk_device):
         return card
     return None
