@@ -116,8 +116,9 @@ and its floppy drives may not work.
   Mac Roman.
 - Host Printer (every model): `virtio-print-device` on classicvirtio's
   card, which also carries the shared folder disk when both are on. The
-  Printer tab picks the host's default printer, a named one (`lpstat -e`),
-  or a folder to save PDFs in (`save-to=`; the only choice on Windows).
+  Printer tab picks the host's default printer, a named one (CUPS on
+  macOS, the Windows printers on Windows), or a folder to save PDFs in
+  (`save-to=`).
   In the Mac, the Host Printer file from classicvirtio goes in the System
   Folder and is chosen in the Chooser.
 - Shared folder as a disk (every model): the folder appears in the

@@ -698,7 +698,7 @@ class MachineEditor(tk.Toplevel):
         else:
             note = ("In the Mac, put the Host Printer file in the System Folder "
                     "(it goes in Extensions) and choose Host Printer in the Chooser. "
-                    "Pages are sent to the host as a PDF.")
+                    "Pages go to the host printer, or into the folder as PDFs.")
         self.printer_note.config(text=note)
 
     def _choose_printer_folder(self):

@@ -374,7 +374,7 @@ PRINTER_TARGETS = {"none": "Off", "default": "The host's default printer",
 @dataclass
 class Printer:
     target: str = "none"         # a PRINTER_TARGETS key
-    queue: str = ""              # target "queue": the host's name for it (lpstat -e)
+    queue: str = ""              # target "queue": the host's name for it
     folder: str = ""             # target "pdf"
 
     def to_dict(self) -> dict:
@@ -394,15 +394,44 @@ class Printer:
 
 
 def host_printers(platform: str = paths.HOST_PLATFORM) -> list[str]:
-    """The host's printer queues, by the names CUPS knows them by."""
+    """The host's printers, by the names CUPS (or Windows) knows them by."""
     if paths.is_windows(platform):
-        return []
+        return _windows_printers()
     import subprocess
     try:
         r = subprocess.run(["lpstat", "-e"], capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return []
     return [line.strip() for line in r.stdout.splitlines() if line.strip()]
+
+
+def _windows_printers() -> list[str]:
+    """EnumPrintersW, level 4: the local printers and the connected ones."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        return []
+
+    class PRINTER_INFO_4(ctypes.Structure):
+        _fields_ = [("pPrinterName", wintypes.LPWSTR),
+                    ("pServerName", wintypes.LPWSTR),
+                    ("Attributes", wintypes.DWORD)]
+
+    try:
+        enum = ctypes.WinDLL("winspool.drv").EnumPrintersW
+    except (OSError, AttributeError):
+        return []
+    flags = 0x2 | 0x4                       # PRINTER_ENUM_LOCAL | _CONNECTIONS
+    need, count = wintypes.DWORD(0), wintypes.DWORD(0)
+    enum(flags, None, 4, None, 0, ctypes.byref(need), ctypes.byref(count))
+    if not need.value:
+        return []
+    buf = ctypes.create_string_buffer(need.value)
+    if not enum(flags, None, 4, buf, need, ctypes.byref(need), ctypes.byref(count)):
+        return []
+    infos = ctypes.cast(buf, ctypes.POINTER(PRINTER_INFO_4))
+    return [infos[i].pPrinterName for i in range(count.value) if infos[i].pPrinterName]
 
 
 @dataclass
@@ -699,8 +728,6 @@ def validate(m: Machine, qemu_dir: str | None, platform: str = paths.HOST_PLATFO
             errors.append("Choose which host printer to print on.")
         if pr.target == "pdf" and not Path(pr.folder.strip()).expanduser().is_dir():
             errors.append("The folder for the PDFs is not a folder that exists.")
-        if pr.target in ("default", "queue") and paths.is_windows(platform):
-            errors.append("On Windows the Host Printer can only save PDFs in a folder.")
 
     seen_ids = set()
     for s in m.scsi:

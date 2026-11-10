@@ -576,7 +576,8 @@ class HostPrinter(unittest.TestCase):
         self.assertEqual(errors(self.printer()), [])
         self.assertTrue(errors(self.printer(target="queue")))
         self.assertTrue(errors(self.printer(target="pdf", folder="/no/such/folder")))
-        self.assertTrue(errors(self.printer(), platform="win32"))
+        self.assertEqual(errors(self.printer(), platform="win32"), [])
+        self.assertEqual(errors(self.printer(target="queue", queue="HP"), platform="win32"), [])
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(errors(self.printer(target="pdf", folder=d), platform="win32"), [])
 
